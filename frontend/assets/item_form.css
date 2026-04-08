@@ -966,3 +966,51 @@ img {
         gap: 18px;
     }
 }
+
+.editor-shell.is-skeleton-loading .form-section,
+.editor-shell.is-skeleton-loading .sidebar-card,
+.editor-shell.is-skeleton-loading .asset-preview,
+.editor-shell.is-skeleton-loading .warning-shell__content,
+.editor-shell.is-skeleton-loading .warning-shell__aside {
+    position: relative;
+    overflow: hidden;
+}
+
+.editor-shell.is-skeleton-loading .form-section::before,
+.editor-shell.is-skeleton-loading .sidebar-card::before,
+.editor-shell.is-skeleton-loading .asset-preview::before,
+.editor-shell.is-skeleton-loading .warning-shell__content::before,
+.editor-shell.is-skeleton-loading .warning-shell__aside::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, var(--api-skeleton-base), var(--api-skeleton-strong));
+}
+
+.editor-shell.is-skeleton-loading .form-section::after,
+.editor-shell.is-skeleton-loading .sidebar-card::after,
+.editor-shell.is-skeleton-loading .asset-preview::after,
+.editor-shell.is-skeleton-loading .warning-shell__content::after,
+.editor-shell.is-skeleton-loading .warning-shell__aside::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent 0%, var(--api-skeleton-highlight) 50%, transparent 100%);
+    animation: api-skeleton-shimmer 1.3s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.editor-shell.is-skeleton-loading .form-section > *,
+.editor-shell.is-skeleton-loading .sidebar-card > *,
+.editor-shell.is-skeleton-loading .asset-preview > *,
+.editor-shell.is-skeleton-loading .warning-shell__content > :not([data-form-status]):not([data-delete-status]),
+.editor-shell.is-skeleton-loading .warning-shell__aside > * {
+    opacity: 0;
+}
+
+.editor-shell.is-skeleton-loading .form-footer,
+.editor-shell.is-skeleton-loading .warning-actions {
+    opacity: 0.42;
+}

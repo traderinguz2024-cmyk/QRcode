@@ -929,6 +929,18 @@
         document.body.classList.toggle("is-navigating", busy);
     }
 
+    function togglePageSkeleton(pageRoot, enabled) {
+        if (!pageRoot) {
+            return;
+        }
+        pageRoot.classList.toggle("is-skeleton-loading", !!enabled);
+        if (enabled) {
+            pageRoot.setAttribute("aria-busy", "true");
+        } else {
+            pageRoot.removeAttribute("aria-busy");
+        }
+    }
+
     function isActivePage(pageRoot, runId) {
         return !!pageRoot && pageRoot === root && pageRoot.isConnected && pageRunId === runId;
     }
@@ -1350,6 +1362,7 @@
         var emptyState = pageRoot.querySelector("[data-empty-state]");
         var initialCategoryValue = categorySelect ? (categorySelect.dataset.selectedValue || categorySelect.value || "") : "";
         var initialFacultyValue = facultySelect ? (facultySelect.dataset.selectedValue || facultySelect.value || "") : "";
+        var isBootstrappingList = true;
 
         function updateLanguageLinks() {
             renderHeaderLanguageMenu(pageRoot.querySelector("[data-app-header-language]"), pageLanguage, function (langCode) {
@@ -1395,6 +1408,34 @@
                 "  </div>",
                 "</article>"
             ].join("");
+        }
+
+        function renderProductSkeletons() {
+            var skeletonRows = [];
+            var index;
+
+            for (index = 0; index < 4; index += 1) {
+                skeletonRows.push([
+                    '<article class="list-row list-row--skeleton" aria-hidden="true">',
+                    '  <div class="row-thumb"><span class="skeleton-block"></span></div>',
+                    '  <div class="row-content">',
+                    '    <div class="row-meta"><span class="skeleton-pill"></span></div>',
+                    '    <div class="row-titlebar"><div><span class="skeleton-line skeleton-line--title"></span><span class="skeleton-line skeleton-line--title skeleton-line--short"></span></div></div>',
+                    '    <dl class="row-facts">',
+                    '      <div><dt><span class="skeleton-inline skeleton-inline--label"></span></dt><dd><span class="skeleton-line skeleton-line--tiny"></span></dd></div>',
+                    '      <div><dt><span class="skeleton-inline skeleton-inline--label"></span></dt><dd><span class="skeleton-line skeleton-line--tiny"></span></dd></div>',
+                    '    </dl>',
+                    '    <div class="row-details">',
+                    '      <div class="row-side"><p class="row-side__label"><span class="skeleton-inline skeleton-inline--label"></span></p><p class="row-side__value"><span class="skeleton-line skeleton-line--medium"></span></p></div>',
+                    '      <div class="row-side"><p class="row-side__label"><span class="skeleton-inline skeleton-inline--label"></span></p><p class="row-side__value"><span class="skeleton-line skeleton-line--short"></span></p></div>',
+                    "    </div>",
+                    "  </div>",
+                    '  <div class="row-qr"><span class="skeleton-block skeleton-block--square"></span></div>',
+                    "</article>"
+                ].join(""));
+            }
+
+            return skeletonRows.join("");
         }
 
         function bindListRowNavigation() {
@@ -1450,6 +1491,20 @@
                 if (!isActivePage(pageRoot, runId)) {
                     return;
                 }
+                if (count) {
+                    count.classList.remove("skeleton-inline");
+                    count.textContent = "0";
+                }
+                if (listShell) {
+                    listShell.hidden = true;
+                }
+                if (listBody) {
+                    listBody.innerHTML = "";
+                    listBody.classList.remove("is-loading");
+                }
+                if (emptyState) {
+                    emptyState.hidden = true;
+                }
                 showFeedback(feedback, flattenError(error.payload) || t("lookupError", null, pageLanguage), "error");
             }
         }
@@ -1460,6 +1515,17 @@
             }
 
             listBody.classList.add("is-loading");
+            listBody.innerHTML = renderProductSkeletons();
+            if (listShell) {
+                listShell.hidden = false;
+            }
+            if (emptyState) {
+                emptyState.hidden = true;
+            }
+            if (count) {
+                count.classList.add("skeleton-inline");
+                count.textContent = "";
+            }
             hideFeedback(feedback);
 
             try {
@@ -1474,6 +1540,7 @@
                 }
 
                 if (count) {
+                    count.classList.remove("skeleton-inline");
                     count.textContent = products.length;
                 }
                 listBody.innerHTML = products.map(renderProduct).join("");
@@ -1489,10 +1556,25 @@
                 if (!isActivePage(pageRoot, runId)) {
                     return;
                 }
+                if (count) {
+                    count.classList.remove("skeleton-inline");
+                    count.textContent = "0";
+                }
+                if (listShell) {
+                    listShell.hidden = true;
+                }
+                if (emptyState) {
+                    emptyState.hidden = true;
+                }
+                listBody.innerHTML = "";
                 showFeedback(feedback, flattenError(error.payload) || t("listError", null, pageLanguage), "error");
             } finally {
                 if (isActivePage(pageRoot, runId)) {
                     listBody.classList.remove("is-loading");
+                    if (isBootstrappingList) {
+                        isBootstrappingList = false;
+                        togglePageSkeleton(pageRoot, false);
+                    }
                 }
             }
         }
@@ -1503,6 +1585,22 @@
             }
             loadProducts();
         });
+
+        if (listBody) {
+            listBody.classList.add("is-loading");
+            listBody.innerHTML = renderProductSkeletons();
+        }
+        if (listShell) {
+            listShell.hidden = false;
+        }
+        if (emptyState) {
+            emptyState.hidden = true;
+        }
+        if (count) {
+            count.classList.add("skeleton-inline");
+            count.textContent = "";
+        }
+        togglePageSkeleton(pageRoot, true);
 
         loadLookups().then(function () {
             if (!isActivePage(pageRoot, runId)) {
@@ -1518,6 +1616,8 @@
         if (!productId) {
             return;
         }
+
+        togglePageSkeleton(pageRoot, true);
 
         function trimTextValue(text) {
             return String(text || "").replace(/\r/g, "").trim();
@@ -2040,6 +2140,7 @@
                         element.classList.remove("is-loading");
                     }
                 });
+                togglePageSkeleton(pageRoot, false);
             });
     }
 
@@ -2163,6 +2264,7 @@
             }
         }
 
+        togglePageSkeleton(pageRoot, true);
         var currentProductRequest = isEdit ? request(buildApiDetailUrl(pageRoot.dataset.apiProducts, productId, { lang: pageLanguage })) : Promise.resolve(null);
 
         Promise.all([
@@ -2193,6 +2295,12 @@
                     return;
                 }
                 showFeedback(feedback, flattenError(error.payload) || t("formLoadError", null, pageLanguage), "error");
+            })
+            .finally(function () {
+                if (!isActivePage(pageRoot, runId)) {
+                    return;
+                }
+                togglePageSkeleton(pageRoot, false);
             });
 
         form.addEventListener("submit", function (event) {
@@ -2251,6 +2359,7 @@
             cancelEditLink.href = buildEditUrl(productId, pageLanguage);
         }
 
+        togglePageSkeleton(pageRoot, true);
         request(buildApiDetailUrl(pageRoot.dataset.apiProducts, productId, { lang: pageLanguage }))
             .then(function (product) {
                 if (!isActivePage(pageRoot, runId)) {
@@ -2294,6 +2403,12 @@
                     return;
                 }
                 showFeedback(feedback, flattenError(error.payload) || t("deleteError", null, pageLanguage), "error");
+            })
+            .finally(function () {
+                if (!isActivePage(pageRoot, runId)) {
+                    return;
+                }
+                togglePageSkeleton(pageRoot, false);
             });
 
         form.addEventListener("submit", function (event) {

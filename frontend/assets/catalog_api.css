@@ -6,6 +6,9 @@
     --api-success-bg: rgba(49, 119, 89, 0.08);
     --api-success-text: #317759;
     --api-line: rgba(24, 35, 45, 0.12);
+    --api-skeleton-base: rgba(36, 76, 104, 0.12);
+    --api-skeleton-strong: rgba(36, 76, 104, 0.18);
+    --api-skeleton-highlight: rgba(255, 255, 255, 0.76);
 }
 
 .page-shell,
@@ -187,13 +190,101 @@ button.is-busy {
     opacity: 0.7;
 }
 
-[data-list-body].is-loading,
 [data-story-copy].is-loading,
 [data-media-slot].is-loading,
 [data-visual-slot].is-loading,
 [data-qr-slot].is-loading {
     opacity: 0.55;
     transition: opacity 0.2s ease;
+}
+
+.skeleton-line,
+.skeleton-inline,
+.skeleton-pill,
+.skeleton-block {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, var(--api-skeleton-base), var(--api-skeleton-strong));
+    color: transparent !important;
+}
+
+.skeleton-line::after,
+.skeleton-inline::after,
+.skeleton-pill::after,
+.skeleton-block::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent 0%, var(--api-skeleton-highlight) 48%, transparent 100%);
+    animation: api-skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+.skeleton-line {
+    display: block;
+    width: 100%;
+    height: 14px;
+    border-radius: 999px;
+}
+
+.skeleton-line--title {
+    height: 24px;
+    border-radius: 12px;
+}
+
+.skeleton-line--medium {
+    width: 74%;
+}
+
+.skeleton-line--short {
+    width: 56%;
+}
+
+.skeleton-line--tiny {
+    width: 42%;
+}
+
+.skeleton-inline {
+    display: inline-block;
+    min-width: 72px;
+    min-height: 0.9em;
+    border-radius: 999px;
+    vertical-align: middle;
+}
+
+.skeleton-inline--label {
+    min-width: 58px;
+    min-height: 0.7em;
+}
+
+.skeleton-pill {
+    display: inline-block;
+    width: 112px;
+    height: 22px;
+    border-radius: 999px;
+}
+
+.skeleton-block {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 100px;
+    border-radius: inherit;
+}
+
+.skeleton-block--square {
+    min-height: 100%;
+}
+
+.is-skeleton-loading {
+    pointer-events: none;
+    user-select: none;
+}
+
+@keyframes api-skeleton-shimmer {
+    100% {
+        transform: translateX(100%);
+    }
 }
 
 body.is-navigating {

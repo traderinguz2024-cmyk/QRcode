@@ -3,6 +3,7 @@ import json
 from rest_framework import serializers
 
 from .models import About, Category, Faculty, Product, Teacher
+from .public_urls import backend_public_url
 
 
 class FacultySerializer(serializers.ModelSerializer):
@@ -60,20 +61,23 @@ class AboutReadSerializer(serializers.ModelSerializer):
             "en": obj.about_en,
         }
 
+    def _build_url(self, file_field):
+        if not file_field:
+            return None
+        return backend_public_url(file_field.url)
+
     def get_audio(self, obj):
-        request = self.context.get("request")
         return {
-            "uz": request.build_absolute_uri(obj.audio_uz.url) if request and obj.audio_uz else (obj.audio_uz.url if obj.audio_uz else None),
-            "ru": request.build_absolute_uri(obj.audio_ru.url) if request and obj.audio_ru else (obj.audio_ru.url if obj.audio_ru else None),
-            "en": request.build_absolute_uri(obj.audio_en.url) if request and obj.audio_en else (obj.audio_en.url if obj.audio_en else None),
+            "uz": self._build_url(obj.audio_uz),
+            "ru": self._build_url(obj.audio_ru),
+            "en": self._build_url(obj.audio_en),
         }
 
     def get_video(self, obj):
-        request = self.context.get("request")
         return {
-            "uz": request.build_absolute_uri(obj.video_uz.url) if request and obj.video_uz else (obj.video_uz.url if obj.video_uz else None),
-            "ru": request.build_absolute_uri(obj.video_ru.url) if request and obj.video_ru else (obj.video_ru.url if obj.video_ru else None),
-            "en": request.build_absolute_uri(obj.video_en.url) if request and obj.video_en else (obj.video_en.url if obj.video_en else None),
+            "uz": self._build_url(obj.video_uz),
+            "ru": self._build_url(obj.video_ru),
+            "en": self._build_url(obj.video_en),
         }
 
 
@@ -164,8 +168,7 @@ class ProductReadSerializer(serializers.ModelSerializer):
     def _build_url(self, file_field):
         if not file_field:
             return None
-        request = self.context.get("request")
-        return request.build_absolute_uri(file_field.url) if request else file_field.url
+        return backend_public_url(file_field.url)
 
     def _get_language(self):
         request = self.context.get("request")

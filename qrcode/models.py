@@ -4,11 +4,12 @@ import sys
 import sysconfig
 from pathlib import Path
 
-from django.conf import settings
 from django.core.files import File
 from django.db import models
 from django.urls import reverse
 from django.utils import translation
+
+from .public_urls import frontend_public_url
 
 
 def build_qr_image(data):
@@ -114,23 +115,29 @@ class Product(models.Model):
     video_en = models.FileField(upload_to="qrcodes/", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def build_detail_url(self):
+        detail_path = reverse("detail", args=[self.pk])
+        return frontend_public_url(detail_path)
+
+    def rebuild_qr_code(self, *, save=True):
+        qr = build_qr_image(self.build_detail_url())
+        buffer = BytesIO()
+        qr.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        file_name = f"product_{self.pk}_qr.png"
+        self.qr_code.save(file_name, File(buffer), save=False)
+
+        if save:
+            super().save(update_fields=["qr_code"])
+
     def save(self, *args, **kwargs):
         creating = self.pk is None
 
         super().save(*args, **kwargs)
 
         if creating or not self.qr_code:
-            detail_path = reverse("detail", args=[self.pk])
-            qr_data = f"{settings.SITE_URL.rstrip('/')}{detail_path}"
-
-            qr = build_qr_image(qr_data)
-            buffer = BytesIO()
-            qr.save(buffer, format="PNG")
-
-            file_name = f"product_{self.pk}_qr.png"
-            self.qr_code.save(file_name, File(buffer), save=False)
-
-            super().save(update_fields=["qr_code"])
+            self.rebuild_qr_code(save=True)
 
     def get_name(self, language):
         return (

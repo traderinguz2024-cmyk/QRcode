@@ -10,6 +10,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views import View
 
 from .models import Category, Faculty, Product, Teacher
+from .public_urls import backend_public_url, frontend_public_url
 from .serializers import CategorySerializer, FacultySerializer, TeacherSerializer
 
 
@@ -73,8 +74,8 @@ def _build_frontend_payload(request):
     lookup_context = {"request": lookup_request}
     return {
         "config": {
-            "backendUrl": request.build_absolute_uri("/").rstrip("/"),
-            "frontendUrl": request.build_absolute_uri("/").rstrip("/"),
+            "backendUrl": backend_public_url(),
+            "frontendUrl": frontend_public_url(),
             "defaultLanguage": language,
         },
         "bootstrap": {
@@ -107,8 +108,8 @@ def render_frontend_index(request):
 
 def frontend_config(request):
     config = {
-        "backendUrl": request.build_absolute_uri("/").rstrip("/"),
-        "frontendUrl": request.build_absolute_uri("/").rstrip("/"),
+        "backendUrl": backend_public_url(),
+        "frontendUrl": frontend_public_url(),
         "defaultLanguage": get_language(request),
     }
     return HttpResponse(

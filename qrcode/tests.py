@@ -1,7 +1,9 @@
+from io import StringIO
 from unittest.mock import patch
 
 from django.conf import settings
 from django.core.cache import cache
+from django.core.management import call_command
 from django.test import TestCase
 from django.test.utils import override_settings
 from rest_framework.test import APIClient
@@ -206,6 +208,42 @@ class APIFilterTests(TestCase):
         body = response.content.decode("utf-8")
         self.assertIn("window.QR_APP_CONFIG", body)
         self.assertIn('"defaultLanguage": "ru"', body)
+
+    @override_settings(
+        BACKEND_URL="https://qr.akadmvd.uz",
+        FRONTEND_URL="https://qr.akadmvd.uz",
+        SITE_URL="https://qr.akadmvd.uz",
+    )
+    def test_frontend_html_and_api_use_public_https_urls(self):
+        product = Product.objects.create(name_uz="Server product")
+
+        html_response = self.client.get("/")
+        html_body = html_response.content.decode("utf-8")
+        self.assertIn('"backendUrl":"https://qr.akadmvd.uz"', html_body)
+        self.assertIn('"frontendUrl":"https://qr.akadmvd.uz"', html_body)
+
+        bootstrap_response = self.client.get("/api/bootstrap/")
+        bootstrap_payload = bootstrap_response.json()
+        self.assertEqual(bootstrap_payload["api"]["products"], "https://qr.akadmvd.uz/api/products/")
+
+        products_response = self.client.get("/api/products/")
+        products_payload = products_response.json()
+        self.assertTrue(products_payload[0]["qr_code"].startswith("https://qr.akadmvd.uz/"))
+
+    @override_settings(
+        BACKEND_URL="https://qr.akadmvd.uz",
+        FRONTEND_URL="https://qr.akadmvd.uz",
+        SITE_URL="https://qr.akadmvd.uz",
+    )
+    def test_regenerate_qr_codes_command_rebuilds_existing_products(self):
+        product = Product.objects.create(name_uz="QR product")
+
+        output = StringIO()
+        call_command("regenerate_qr_codes", "--id", str(product.pk), stdout=output)
+
+        product.refresh_from_db()
+        self.assertIn(f"product_{product.pk}_qr", product.qr_code.name)
+        self.assertIn("Regenerated 1 QR code(s).", output.getvalue())
 
     def test_frontend_assets_are_served_with_utf8_charset(self):
         response = self.client.get("/assets/app.js")

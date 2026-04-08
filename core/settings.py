@@ -35,6 +35,8 @@ def env_bool(name, default=False):
 
 
 DEBUG = env_bool("DEBUG", True)
+USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", True)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 def env_list(name, default):

@@ -34,6 +34,7 @@ except ImportError:  # pragma: no cover - optional dependency
     gTTS = None
 
 from .models import About, Category, Faculty, PersistentTtsAudio, Product, Teacher
+from .public_urls import backend_public_url
 from .serializers import (
     AboutReadSerializer,
     AboutWriteSerializer,
@@ -174,12 +175,12 @@ def frontend_bootstrap(request):
             "backendUrl": settings.BACKEND_URL,
             "frontendUrl": settings.FRONTEND_URL,
             "api": {
-                "bootstrap": request.build_absolute_uri("/api/bootstrap/"),
-                "products": request.build_absolute_uri("/api/products/"),
-                "categories": request.build_absolute_uri("/api/categories/"),
-                "faculties": request.build_absolute_uri("/api/faculties/"),
-                "teachers": request.build_absolute_uri("/api/teachers/"),
-                "tts": request.build_absolute_uri("/api/tts/"),
+                "bootstrap": backend_public_url("/api/bootstrap/"),
+                "products": backend_public_url("/api/products/"),
+                "categories": backend_public_url("/api/categories/"),
+                "faculties": backend_public_url("/api/faculties/"),
+                "teachers": backend_public_url("/api/teachers/"),
+                "tts": backend_public_url("/api/tts/"),
             },
             "languages": ["uz", "ru", "en"],
             "tts": {

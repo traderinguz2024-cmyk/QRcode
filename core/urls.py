@@ -30,6 +30,7 @@ schema_view = get_schema_view(
         default_version="v1",
         description="API for products, categories, faculties, teachers, and about content.",
     ),
+    url=settings.BACKEND_URL,
     public=True,
     permission_classes=(AllowAny,),
 )

@@ -185,6 +185,19 @@ class APIFilterTests(TestCase):
         self.assertEqual(payload["frontendUrl"], settings.FRONTEND_URL)
         self.assertEqual(payload["languages"], ["uz", "ru", "en"])
 
+    @override_settings(
+        BACKEND_URL="https://qr.akadmvd.uz",
+        FRONTEND_URL="https://qr.akadmvd.uz",
+    )
+    def test_swagger_schema_uses_public_https_url(self):
+        response = self.client.get("/swagger/?format=openapi")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode("utf-8")
+        self.assertIn('"host": "qr.akadmvd.uz"', body)
+        self.assertIn('"schemes": ["https"]', body)
+        self.assertNotIn('"schemes": ["http"]', body)
+
     def test_html_routes_redirect_to_frontend(self):
         product = Product.objects.first()
 

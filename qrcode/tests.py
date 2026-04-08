@@ -185,6 +185,21 @@ class APIFilterTests(TestCase):
         self.assertEqual(payload["frontendUrl"], settings.FRONTEND_URL)
         self.assertEqual(payload["languages"], ["uz", "ru", "en"])
 
+    def test_local_runserver_uses_local_urls(self):
+        response = self.client.get("/", HTTP_HOST="127.0.0.1:8000")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode("utf-8")
+        self.assertIn('"backendUrl":"http://127.0.0.1:8000"', body)
+        self.assertIn('"frontendUrl":"http://127.0.0.1:8000"', body)
+
+        bootstrap = self.client.get("/api/bootstrap/", HTTP_HOST="127.0.0.1:8000")
+        self.assertEqual(bootstrap.status_code, 200)
+        payload = bootstrap.json()
+        self.assertEqual(payload["backendUrl"], "http://127.0.0.1:8000")
+        self.assertEqual(payload["frontendUrl"], "http://127.0.0.1:8000")
+        self.assertEqual(payload["api"]["products"], "http://127.0.0.1:8000/api/products/")
+
     @override_settings(
         BACKEND_URL="https://qr.akadmvd.uz",
         FRONTEND_URL="https://qr.akadmvd.uz",

@@ -65,7 +65,8 @@ class AboutReadSerializer(serializers.ModelSerializer):
     def _build_url(self, file_field):
         if not file_field:
             return None
-        return backend_public_url(file_field.url)
+        request = self.context.get("request")
+        return backend_public_url(file_field.url, request=request)
 
     def get_audio(self, obj):
         return {
@@ -169,7 +170,8 @@ class ProductReadSerializer(serializers.ModelSerializer):
     def _build_url(self, file_field):
         if not file_field:
             return None
-        return backend_public_url(file_field.url)
+        request = self.context.get("request")
+        return backend_public_url(file_field.url, request=request)
 
     def _get_language(self):
         request = self.context.get("request")
@@ -211,7 +213,8 @@ class ProductReadSerializer(serializers.ModelSerializer):
         }
 
     def get_qr_code(self, obj):
-        return backend_public_url(reverse("product-qr", args=[obj.pk]))
+        request = self.context.get("request")
+        return backend_public_url(reverse("product-qr", args=[obj.pk]), request=request)
 
     def get_img(self, obj):
         return self._build_url(obj.img)

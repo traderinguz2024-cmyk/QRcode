@@ -74,8 +74,8 @@ def _build_frontend_payload(request):
     lookup_context = {"request": lookup_request}
     return {
         "config": {
-            "backendUrl": backend_public_url(),
-            "frontendUrl": frontend_public_url(),
+            "backendUrl": backend_public_url(request=request),
+            "frontendUrl": frontend_public_url(request=request),
             "defaultLanguage": language,
         },
         "bootstrap": {
@@ -108,8 +108,8 @@ def render_frontend_index(request):
 
 def frontend_config(request):
     config = {
-        "backendUrl": backend_public_url(),
-        "frontendUrl": frontend_public_url(),
+        "backendUrl": backend_public_url(request=request),
+        "frontendUrl": frontend_public_url(request=request),
         "defaultLanguage": get_language(request),
     }
     return HttpResponse(

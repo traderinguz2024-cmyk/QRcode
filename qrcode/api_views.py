@@ -34,7 +34,7 @@ except ImportError:  # pragma: no cover - optional dependency
     gTTS = None
 
 from .models import About, Category, Faculty, PersistentTtsAudio, Product, Teacher
-from .public_urls import backend_public_url
+from .public_urls import backend_public_url, frontend_public_url
 from .serializers import (
     AboutReadSerializer,
     AboutWriteSerializer,
@@ -169,18 +169,20 @@ def get_query_int(request, key):
 @permission_classes([AllowAny])
 @ensure_csrf_cookie
 def frontend_bootstrap(request):
+    backend_url = backend_public_url(request=request)
+    frontend_url = frontend_public_url(request=request)
     return Response(
         {
             "csrfToken": get_token(request),
-            "backendUrl": settings.BACKEND_URL,
-            "frontendUrl": settings.FRONTEND_URL,
+            "backendUrl": backend_url,
+            "frontendUrl": frontend_url,
             "api": {
-                "bootstrap": backend_public_url("/api/bootstrap/"),
-                "products": backend_public_url("/api/products/"),
-                "categories": backend_public_url("/api/categories/"),
-                "faculties": backend_public_url("/api/faculties/"),
-                "teachers": backend_public_url("/api/teachers/"),
-                "tts": backend_public_url("/api/tts/"),
+                "bootstrap": backend_public_url("/api/bootstrap/", request=request),
+                "products": backend_public_url("/api/products/", request=request),
+                "categories": backend_public_url("/api/categories/", request=request),
+                "faculties": backend_public_url("/api/faculties/", request=request),
+                "teachers": backend_public_url("/api/teachers/", request=request),
+                "tts": backend_public_url("/api/tts/", request=request),
             },
             "languages": ["uz", "ru", "en"],
             "tts": {

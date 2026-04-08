@@ -79,7 +79,6 @@ FRONTEND_ALLOWED_ORIGINS = [
     )
 ]
 CSRF_TRUSTED_ORIGINS = FRONTEND_ALLOWED_ORIGINS
-SITE_URL = BACKEND_URL
 YANDEX_TTS_API_KEY = os.getenv("YANDEX_TTS_API_KEY", "").strip()
 YANDEX_TTS_API_URL = os.getenv("YANDEX_TTS_API_URL", "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize").strip()
 YANDEX_TTS_UZ_VOICE = os.getenv("YANDEX_TTS_UZ_VOICE", "yulduz").strip() or "yulduz"

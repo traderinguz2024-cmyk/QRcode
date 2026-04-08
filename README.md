@@ -3,6 +3,8 @@
 Public domain:
 `https://qr.akadmvd.uz`
 
+Backend now runs as a separate API/QR/media service and no longer depends on the local `frontend/` bundle.
+
 Local run:
 ```powershell
 .\.venv\Scripts\python.exe manage.py runserver

@@ -189,51 +189,46 @@ class APIFilterTests(TestCase):
         product = Product.objects.first()
 
         cases = [
-            "/?lang=uz",
-            "/add/?lang=ru",
-            f"/detail/{product.id}/?lang=en",
-            f"/edit/{product.id}/?lang=uz",
-            f"/delete/{product.id}/?lang=uz",
+            ("/?lang=uz", f"{settings.FRONTEND_URL}/?lang=uz"),
+            ("/add/?lang=ru", f"{settings.FRONTEND_URL}/add/?lang=ru"),
+            (f"/detail/{product.id}/?lang=en", f"{settings.FRONTEND_URL}/detail/{product.id}/?lang=en"),
+            (f"/edit/{product.id}/?lang=uz", f"{settings.FRONTEND_URL}/edit/{product.id}/?lang=uz"),
+            (f"/delete/{product.id}/?lang=uz", f"{settings.FRONTEND_URL}/delete/{product.id}/?lang=uz"),
         ]
 
-        for path in cases:
+        for path, target in cases:
             response = self.client.get(path, follow=False)
-            self.assertEqual(response.status_code, 200)
-            self.assertIn("data-spa-root", response.content.decode("utf-8"))
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(response["Location"], target)
 
-    def test_frontend_config_is_served_without_template_engine(self):
+    def test_frontend_config_redirects_to_frontend_domain(self):
         response = self.client.get("/config.js?lang=ru")
 
-        self.assertEqual(response.status_code, 200)
-        body = response.content.decode("utf-8")
-        self.assertIn("window.QR_APP_CONFIG", body)
-        self.assertIn('"defaultLanguage": "ru"', body)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{settings.FRONTEND_URL}/config.js?lang=ru")
 
     @override_settings(
-        BACKEND_URL="https://qr.akadmvd.uz",
+        BACKEND_URL="https://api.akadmvd.uz",
         FRONTEND_URL="https://qr.akadmvd.uz",
-        SITE_URL="https://qr.akadmvd.uz",
     )
-    def test_frontend_html_and_api_use_public_https_urls(self):
+    def test_frontend_redirects_and_api_use_public_https_urls(self):
         product = Product.objects.create(name_uz="Server product")
 
         html_response = self.client.get("/")
-        html_body = html_response.content.decode("utf-8")
-        self.assertIn('"backendUrl":"https://qr.akadmvd.uz"', html_body)
-        self.assertIn('"frontendUrl":"https://qr.akadmvd.uz"', html_body)
+        self.assertEqual(html_response.status_code, 302)
+        self.assertEqual(html_response["Location"], "https://qr.akadmvd.uz/")
 
         bootstrap_response = self.client.get("/api/bootstrap/")
         bootstrap_payload = bootstrap_response.json()
-        self.assertEqual(bootstrap_payload["api"]["products"], "https://qr.akadmvd.uz/api/products/")
+        self.assertEqual(bootstrap_payload["api"]["products"], "https://api.akadmvd.uz/api/products/")
 
         products_response = self.client.get("/api/products/")
         products_payload = products_response.json()
-        self.assertEqual(products_payload[0]["qr_code"], f"https://qr.akadmvd.uz/qr/{product.pk}.png")
+        self.assertEqual(products_payload[0]["qr_code"], f"https://api.akadmvd.uz/qr/{product.pk}.png")
 
     @override_settings(
         BACKEND_URL="https://qr.akadmvd.uz",
         FRONTEND_URL="https://qr.akadmvd.uz",
-        SITE_URL="https://qr.akadmvd.uz",
     )
     def test_product_qr_image_endpoint_returns_png(self):
         product = Product.objects.create(name_uz="QR endpoint product")
@@ -247,7 +242,6 @@ class APIFilterTests(TestCase):
     @override_settings(
         BACKEND_URL="https://qr.akadmvd.uz",
         FRONTEND_URL="https://qr.akadmvd.uz",
-        SITE_URL="https://qr.akadmvd.uz",
     )
     def test_regenerate_qr_codes_command_rebuilds_existing_products(self):
         product = Product.objects.create(name_uz="QR product")
@@ -259,13 +253,11 @@ class APIFilterTests(TestCase):
         self.assertIn(f"product_{product.pk}_qr", product.qr_code.name)
         self.assertIn("Regenerated 1 QR code(s).", output.getvalue())
 
-    def test_frontend_assets_are_served_with_utf8_charset(self):
+    def test_frontend_assets_redirect_to_frontend_domain(self):
         response = self.client.get("/assets/app.js")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["Content-Type"], "application/javascript; charset=utf-8")
-        body = b"".join(response.streaming_content)
-        self.assertIn(b"(function () {", body)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{settings.FRONTEND_URL}/assets/app.js")
 
     @override_settings(YANDEX_TTS_API_KEY="")
     @patch("qrcode.api_views.edge_tts", None)

@@ -3,7 +3,7 @@
 Public domain:
 `https://qr.akadmvd.uz`
 
-Backend now runs as a separate API/QR/media service and no longer depends on the local `frontend/` bundle.
+Backend now runs as a separate API/QR/media service. The old local `frontend/` bundle has been removed from this repository.
 
 Local run:
 ```powershell

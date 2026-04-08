@@ -7,7 +7,7 @@
     var APP_CONFIG = window.QR_APP_CONFIG || {};
     var APP_BOOTSTRAP = window.QR_APP_BOOTSTRAP || {};
     var FRONTEND_ORIGIN = normalizeBaseUrl(APP_CONFIG.frontendUrl || window.location.origin);
-    var BACKEND_ORIGIN = normalizeBaseUrl(APP_CONFIG.backendUrl || "http://192.168.0.174:8000");
+    var BACKEND_ORIGIN = normalizeBaseUrl(APP_CONFIG.backendUrl || "https://qr.akadmvd.uz");
     var bootstrapPromise = null;
     var lookupBundleCache = Object.create(null);
     var lookupBundleRequests = Object.create(null);

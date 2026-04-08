@@ -52,17 +52,16 @@ def normalize_origin(url):
 
 
 ALLOWED_HOSTS = ['*']
-BACKEND_URL = os.getenv("BACKEND_URL", "http://192.168.0.174:8000").rstrip("/")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://192.168.0.174:4173").rstrip("/")
+DEFAULT_PUBLIC_URL = "https://qr.akadmvd.uz"
+BACKEND_URL = os.getenv("BACKEND_URL", DEFAULT_PUBLIC_URL).rstrip("/")
+FRONTEND_URL = os.getenv("FRONTEND_URL", DEFAULT_PUBLIC_URL).rstrip("/")
 FRONTEND_ALLOWED_ORIGINS = [
     normalize_origin(origin)
     for origin in env_list(
         "FRONTEND_ALLOWED_ORIGINS",
         [
             FRONTEND_URL,
-            "http://192.168.0.174:4173",
             "http://localhost:4173",
-            "http://127.0.0.1:5173",
             "http://localhost:5173",
         ],
     )

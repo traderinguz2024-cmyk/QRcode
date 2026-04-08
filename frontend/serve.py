@@ -1,3 +1,4 @@
+import os
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -35,6 +36,9 @@ class SPARequestHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("192.168.0.174", 4173), SPARequestHandler)
-    print("Frontend running at http://127.0.0.1:4173")
+    bind_host = os.getenv("FRONTEND_BIND_HOST", "localhost").strip() or "localhost"
+    bind_port = int(os.getenv("FRONTEND_BIND_PORT", "4173"))
+    public_url = os.getenv("FRONTEND_PUBLIC_URL", "https://qr.akadmvd.uz").strip() or "https://qr.akadmvd.uz"
+    server = ThreadingHTTPServer((bind_host, bind_port), SPARequestHandler)
+    print(f"Frontend running at {public_url}")
     server.serve_forever()

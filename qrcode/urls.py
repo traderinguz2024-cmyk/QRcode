@@ -15,6 +15,7 @@ router.register("about", AboutViewSet, basename="api-about")
 urlpatterns = [
     path('', index, name='index'),
     path('detail/<int:id>/', items_detail, name='detail'),
+    path("qr/<int:id>.png", product_qr_image, name="product-qr"),
     path('add/', AddItemView.as_view(), name='add_item'),
     path('edit/<int:id>/', EditItemView.as_view(), name='edit_item'),
     path('delete/<int:id>/', DeleteItemView.as_view(), name='delete_item'),

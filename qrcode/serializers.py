@@ -1,4 +1,5 @@
 import json
+from django.urls import reverse
 
 from rest_framework import serializers
 
@@ -210,7 +211,7 @@ class ProductReadSerializer(serializers.ModelSerializer):
         }
 
     def get_qr_code(self, obj):
-        return self._build_url(obj.qr_code)
+        return backend_public_url(reverse("product-qr", args=[obj.pk]))
 
     def get_img(self, obj):
         return self._build_url(obj.img)

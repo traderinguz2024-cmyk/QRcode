@@ -1,5 +1,6 @@
 import json
 import mimetypes
+from io import BytesIO
 from pathlib import Path
 
 from django.conf import settings
@@ -9,7 +10,7 @@ from django.utils import translation
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views import View
 
-from .models import Category, Faculty, Product, Teacher
+from .models import Category, Faculty, Product, Teacher, build_qr_image
 from .public_urls import backend_public_url, frontend_public_url
 from .serializers import CategorySerializer, FacultySerializer, TeacherSerializer
 
@@ -132,6 +133,17 @@ def items_detail(request, id):
     activate_request_language(request)
     get_object_or_404(Product, id=id)
     return render_frontend_index(request)
+
+
+def product_qr_image(request, id):
+    product = get_object_or_404(Product, id=id)
+    qr_image = build_qr_image(product.build_detail_url())
+    buffer = BytesIO()
+    qr_image.save(buffer, format="PNG")
+    response = HttpResponse(buffer.getvalue(), content_type="image/png")
+    response["Content-Disposition"] = f'inline; filename="product_{product.pk}_qr.png"'
+    response["Cache-Control"] = "public, max-age=3600"
+    return response
 
 
 class FrontendRedirectView(View):

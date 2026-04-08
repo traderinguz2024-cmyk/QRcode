@@ -21,12 +21,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-s=zt&4n=(1i$l44hnh6(xtruo3!)@5$tc5u29st3$#8lfkyg0p'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-
-
 def env_bool(name, default=False):
     value = os.getenv(name)
     if value is None:
@@ -35,8 +29,18 @@ def env_bool(name, default=False):
 
 
 DEBUG = env_bool("DEBUG", True)
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "").strip() or "dev-only-insecure-secret-key"
+if not DEBUG and SECRET_KEY == "dev-only-insecure-secret-key":
+    raise RuntimeError("DJANGO_SECRET_KEY must be set when DEBUG=0.")
+
 USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", True)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", not DEBUG)
+SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
+CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
+SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000" if not DEBUG else "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", not DEBUG)
+SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", not DEBUG)
 
 
 def env_list(name, default):
@@ -52,9 +56,15 @@ def normalize_origin(url):
         return f"{parts.scheme}://{parts.netloc}"
     return str(url).rstrip("/")
 
-
-ALLOWED_HOSTS = ['*']
 DEFAULT_PUBLIC_URL = "https://qr.akadmvd.uz"
+ALLOWED_HOSTS = env_list(
+    "ALLOWED_HOSTS",
+    [
+        "qr.akadmvd.uz",
+        "localhost",
+        "127.0.0.1",
+    ],
+)
 BACKEND_URL = os.getenv("BACKEND_URL", DEFAULT_PUBLIC_URL).rstrip("/")
 FRONTEND_URL = os.getenv("FRONTEND_URL", DEFAULT_PUBLIC_URL).rstrip("/")
 FRONTEND_ALLOWED_ORIGINS = [
@@ -185,7 +195,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
 STATICFILES_DIRS = []

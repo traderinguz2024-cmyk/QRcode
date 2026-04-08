@@ -228,7 +228,21 @@ class APIFilterTests(TestCase):
 
         products_response = self.client.get("/api/products/")
         products_payload = products_response.json()
-        self.assertTrue(products_payload[0]["qr_code"].startswith("https://qr.akadmvd.uz/"))
+        self.assertEqual(products_payload[0]["qr_code"], f"https://qr.akadmvd.uz/qr/{product.pk}.png")
+
+    @override_settings(
+        BACKEND_URL="https://qr.akadmvd.uz",
+        FRONTEND_URL="https://qr.akadmvd.uz",
+        SITE_URL="https://qr.akadmvd.uz",
+    )
+    def test_product_qr_image_endpoint_returns_png(self):
+        product = Product.objects.create(name_uz="QR endpoint product")
+
+        response = self.client.get(f"/qr/{product.pk}.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/png")
+        self.assertIn(f'product_{product.pk}_qr.png', response["Content-Disposition"])
 
     @override_settings(
         BACKEND_URL="https://qr.akadmvd.uz",

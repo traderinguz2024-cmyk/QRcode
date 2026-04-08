@@ -20,6 +20,7 @@
 
     var TRANSLATIONS = {
         uz: {
+            loading: "Yuklanmoqda...",
             listError: "Obyektlarni yuklashda xatolik yuz berdi.",
             lookupError: "Filtr ma'lumotlarini yuklab bo'lmadi.",
             noCategory: "Kategoriya yo'q",
@@ -61,6 +62,7 @@
             ttsUnsupported: "Brauzerda avtomatik ovozli o'qish mavjud emas."
         },
         ru: {
+            loading: "\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...",
             listError: "Не удалось загрузить объекты.",
             lookupError: "Не удалось загрузить данные для фильтров.",
             noCategory: "Категория не указана",
@@ -102,6 +104,7 @@
             ttsUnsupported: "В этом браузере нет автоматического озвучивания."
         },
         en: {
+            loading: "Loading...",
             listError: "Unable to load objects.",
             lookupError: "Unable to load filter data.",
             noCategory: "No category",
@@ -876,13 +879,14 @@
         }
         element.textContent = message;
         element.hidden = false;
-        element.classList.remove("ui-feedback--error", "ui-feedback--success", "form-status--error", "form-status--success");
-        if (variant === "error") {
-            element.classList.add(element.classList.contains("form-status") ? "form-status--error" : "ui-feedback--error");
+        element.classList.remove("ui-feedback--loading", "ui-feedback--error", "ui-feedback--success", "form-status--loading", "form-status--error", "form-status--success");
+        if (variant) {
+            element.classList.add((element.classList.contains("form-status") ? "form-status--" : "ui-feedback--") + variant);
         }
-        if (variant === "success") {
-            element.classList.add(element.classList.contains("form-status") ? "form-status--success" : "ui-feedback--success");
-        }
+    }
+
+    function showLoadingFeedback(element, langCode) {
+        showFeedback(element, t("loading", null, langCode), "loading");
     }
 
     function hideFeedback(element) {
@@ -891,7 +895,7 @@
         }
         element.hidden = true;
         element.textContent = "";
-        element.classList.remove("ui-feedback--error", "ui-feedback--success", "form-status--error", "form-status--success");
+        element.classList.remove("ui-feedback--loading", "ui-feedback--error", "ui-feedback--success", "form-status--loading", "form-status--error", "form-status--success");
     }
 
     function populateSelect(select, items, selectedValue, langCode) {
@@ -1439,6 +1443,7 @@
         }
 
         async function loadLookups() {
+            showLoadingFeedback(feedback, pageLanguage);
             try {
                 var lookupBundle = await getLookupBundle(pageLanguage);
 
@@ -1453,7 +1458,7 @@
                 if (!isActivePage(pageRoot, runId)) {
                     return;
                 }
-                showFeedback(feedback, t("lookupError", null, pageLanguage), "error");
+                showFeedback(feedback, flattenError(error.payload) || t("lookupError", null, pageLanguage), "error");
             }
         }
 
@@ -1463,7 +1468,7 @@
             }
 
             listBody.classList.add("is-loading");
-            hideFeedback(feedback);
+            showLoadingFeedback(feedback, pageLanguage);
 
             try {
                 var products = await request(buildUrl(pageRoot.dataset.apiProducts, {
@@ -1667,6 +1672,19 @@
             }
             return '<div class="detail-inline-viewer__qr"><img src="' + escapeHtml(resolveUrl(payload)) + '" alt="' + escapeHtml(name) + ' QR" loading="lazy" decoding="async"></div>';
         }
+
+        var loadingTargets = [
+            pageRoot.querySelector("[data-story-copy]"),
+            pageRoot.querySelector("[data-visual-slot]"),
+            pageRoot.querySelector("[data-qr-slot]")
+        ];
+
+        loadingTargets.forEach(function (element) {
+            if (element) {
+                element.classList.add("is-loading");
+            }
+        });
+        showLoadingFeedback(feedback, pageLanguage);
 
         request(buildApiDetailUrl(pageRoot.dataset.apiProducts, productId, { lang: pageLanguage }))
             .then(function (product) {
@@ -2021,6 +2039,16 @@
                 }
                 stopSpeechPlayback();
                 showFeedback(feedback, flattenError(error.payload) || t("detailError", null, pageLanguage), "error");
+            })
+            .finally(function () {
+                if (!isActivePage(pageRoot, runId)) {
+                    return;
+                }
+                loadingTargets.forEach(function (element) {
+                    if (element) {
+                        element.classList.remove("is-loading");
+                    }
+                });
             });
     }
 
@@ -2145,6 +2173,7 @@
         }
 
         var currentProductRequest = isEdit ? request(buildApiDetailUrl(pageRoot.dataset.apiProducts, productId, { lang: pageLanguage })) : Promise.resolve(null);
+        showLoadingFeedback(feedback, pageLanguage);
 
         Promise.all([
             getLookupBundle(pageLanguage),
@@ -2167,6 +2196,7 @@
                     populateFormFromProduct(form, product);
                     updateEditSidebar(pageRoot, pageLanguage, product);
                 }
+                hideFeedback(feedback);
             })
             .catch(function (error) {
                 if (!isActivePage(pageRoot, runId)) {
@@ -2231,6 +2261,7 @@
             cancelEditLink.href = buildEditUrl(productId, pageLanguage);
         }
 
+        showLoadingFeedback(feedback, pageLanguage);
         request(buildApiDetailUrl(pageRoot.dataset.apiProducts, productId, { lang: pageLanguage }))
             .then(function (product) {
                 if (!isActivePage(pageRoot, runId)) {
@@ -2267,6 +2298,7 @@
                         image.textContent = t("coverMissing", null, pageLanguage);
                     }
                 }
+                hideFeedback(feedback);
             })
             .catch(function (error) {
                 if (!isActivePage(pageRoot, runId)) {

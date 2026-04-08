@@ -169,6 +169,25 @@
     line-height: 1.6;
 }
 
+.ui-feedback--loading,
+.form-status--loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ui-feedback--loading::before,
+.form-status--loading::before {
+    content: "";
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: api-feedback-spin 0.8s linear infinite;
+}
+
 .ui-feedback--error,
 .form-status--error {
     background: var(--api-error-bg);
@@ -189,9 +208,17 @@ button.is-busy {
 
 [data-list-body].is-loading,
 [data-story-copy].is-loading,
-[data-media-slot].is-loading {
+[data-media-slot].is-loading,
+[data-visual-slot].is-loading,
+[data-qr-slot].is-loading {
     opacity: 0.55;
     transition: opacity 0.2s ease;
+}
+
+@keyframes api-feedback-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 body.is-navigating {

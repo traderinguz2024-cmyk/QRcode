@@ -288,25 +288,36 @@ def build_tts_text_digest(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def persistent_tts_entry_has_blob(entry):
+    return bool(entry is not None and entry.audio_blob is not None and len(entry.audio_blob) > 0)
+
+
+def persistent_tts_entry_has_audio(entry):
+    return bool(entry is not None and (persistent_tts_entry_has_blob(entry) or entry.audio_file))
+
+
 def load_persistent_tts_entry(language, text_digest, provider):
     exact_entry = PersistentTtsAudio.objects.filter(
         language=language,
         provider=provider,
         text_hash=text_digest,
     ).first()
-    if exact_entry and exact_entry.audio_file:
+    if persistent_tts_entry_has_audio(exact_entry):
         return exact_entry
 
     fallback_entry = PersistentTtsAudio.objects.filter(
         language=language,
         text_hash=text_digest,
     ).exclude(provider=provider).order_by("-updated_at").first()
-    if fallback_entry and fallback_entry.audio_file:
+    if persistent_tts_entry_has_audio(fallback_entry):
         return fallback_entry
     return None
 
 
 def read_persistent_tts_audio(entry):
+    if persistent_tts_entry_has_blob(entry):
+        return bytes(entry.audio_blob)
+
     if not entry or not entry.audio_file:
         return None
 
@@ -331,6 +342,7 @@ def persist_tts_audio(language, text, text_digest, provider, content_type, exten
     entry.source_text = text
     entry.content_type = content_type
     entry.extension = extension
+    entry.audio_blob = audio_bytes
 
     has_stored_file = bool(entry.audio_file and entry.audio_file.name and entry.audio_file.storage.exists(entry.audio_file.name))
     if not has_stored_file:

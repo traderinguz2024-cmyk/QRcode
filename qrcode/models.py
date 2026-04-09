@@ -223,6 +223,7 @@ class PersistentTtsAudio(models.Model):
     source_text = models.TextField()
     content_type = models.CharField(max_length=64, default="audio/mpeg")
     extension = models.CharField(max_length=16, default="mp3")
+    audio_blob = models.BinaryField(blank=True, null=True, editable=False)
     audio_file = models.FileField(upload_to=tts_cache_upload_to)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

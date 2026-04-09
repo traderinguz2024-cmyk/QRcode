@@ -19,7 +19,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "").strip() or "dev-only-insecure-se
 if not DEBUG and SECRET_KEY == "dev-only-insecure-secret-key":
     raise RuntimeError("DJANGO_SECRET_KEY must be set when DEBUG=0.")
 
-USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", True)
+USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", False)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", not DEBUG)
 SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
@@ -79,6 +79,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.gzip.GZipMiddleware',
     'core.cors.SimpleCORSMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -153,6 +154,18 @@ STATIC_URL = '/static/'
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+WHITENOISE_AUTOREFRESH = DEBUG
+WHITENOISE_USE_FINDERS = DEBUG
+WHITENOISE_MAX_AGE = 86400 if not DEBUG else 0
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 CACHES = {
     "default": {

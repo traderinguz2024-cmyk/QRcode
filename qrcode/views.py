@@ -15,6 +15,7 @@ from .serializers import CategorySerializer, FacultySerializer, TeacherSerialize
 
 FRONTEND_INDEX_FILE = settings.BASE_DIR / "frontend" / "index.html"
 FRONTEND_ASSETS_DIR = settings.BASE_DIR / "frontend" / "assets"
+MEDIA_FILES_DIR = settings.MEDIA_ROOT
 FRONTEND_BOOTSTRAP_MARKER = "<!-- QR_APP_BOOTSTRAP -->"
 UTF8_ASSET_CONTENT_TYPES = {
     ".css": "text/css; charset=utf-8",
@@ -40,21 +41,25 @@ def activate_request_language(request):
 
 
 def _resolve_frontend_asset(asset_path):
-    assets_root = FRONTEND_ASSETS_DIR.resolve()
-    resolved_path = (assets_root / asset_path).resolve()
+    return _resolve_project_file(FRONTEND_ASSETS_DIR, asset_path, not_found_message="Asset not found.")
+
+
+def _resolve_project_file(root_path, relative_path, *, not_found_message):
+    resolved_root = root_path.resolve()
+    resolved_path = (resolved_root / relative_path).resolve()
 
     try:
-        resolved_path.relative_to(assets_root)
+        resolved_path.relative_to(resolved_root)
     except ValueError as exc:
-        raise Http404("Asset not found.") from exc
+        raise Http404(not_found_message) from exc
 
     if not resolved_path.is_file():
-        raise Http404("Asset not found.")
+        raise Http404(not_found_message)
 
     return resolved_path
 
 
-def _get_frontend_asset_content_type(asset_path):
+def _get_content_type(asset_path):
     suffix = asset_path.suffix.lower()
     if suffix in UTF8_ASSET_CONTENT_TYPES:
         return UTF8_ASSET_CONTENT_TYPES[suffix]
@@ -119,7 +124,14 @@ def frontend_config(request):
 
 def serve_frontend_asset(request, path):
     asset_path = _resolve_frontend_asset(path)
-    return FileResponse(asset_path.open("rb"), content_type=_get_frontend_asset_content_type(asset_path))
+    return FileResponse(asset_path.open("rb"), content_type=_get_content_type(asset_path))
+
+
+def serve_media_file(request, path):
+    media_path = _resolve_project_file(MEDIA_FILES_DIR, path, not_found_message="Media file not found.")
+    response = FileResponse(media_path.open("rb"), content_type=_get_content_type(media_path))
+    response["Cache-Control"] = "public, max-age=3600"
+    return response
 
 
 def index(request):

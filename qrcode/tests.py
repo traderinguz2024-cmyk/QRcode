@@ -278,6 +278,7 @@ class APIFilterTests(TestCase):
         self.assertEqual(response["Access-Control-Allow-Credentials"], "true")
         self.assertIn("Origin", response["Vary"])
 
+    @override_settings(DEBUG=True)
     def test_local_runserver_uses_local_urls(self):
         response = self.client.get("/", HTTP_HOST="127.0.0.1:8000")
 
@@ -292,6 +293,25 @@ class APIFilterTests(TestCase):
         self.assertEqual(payload["backendUrl"], "http://127.0.0.1:8000")
         self.assertEqual(payload["frontendUrl"], "http://127.0.0.1:8000")
         self.assertEqual(payload["api"]["products"], "http://127.0.0.1:8000/api/products/")
+
+    @override_settings(
+        DEBUG=False,
+        BACKEND_URL="https://qr.akadmvd.uz",
+        FRONTEND_URL="https://qr.akadmvd.uz",
+        USE_X_FORWARDED_HOST=True,
+    )
+    def test_production_urls_do_not_fall_back_to_localhost(self):
+        response = self.client.get(
+            "/api/bootstrap/",
+            HTTP_HOST="qr.akadmvd.uz",
+            HTTP_X_FORWARDED_HOST="localhost:8000",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["backendUrl"], "https://qr.akadmvd.uz")
+        self.assertEqual(payload["frontendUrl"], "https://qr.akadmvd.uz")
+        self.assertEqual(payload["api"]["products"], "https://qr.akadmvd.uz/api/products/")
 
     @override_settings(
         BACKEND_URL="https://qr.akadmvd.uz",
@@ -419,6 +439,19 @@ class APIFilterTests(TestCase):
         body = b"".join(response.streaming_content)
         self.assertIn(b"(function () {", body)
 
+    @override_settings(DEBUG=False)
+    def test_media_files_are_served_without_nginx(self):
+        product = Product.objects.create(
+            name_uz="Audio product",
+            audio_uz=SimpleUploadedFile("audio-uz.mp3", b"audio-uz", content_type="audio/mpeg"),
+        )
+
+        response = self.client.get(product.audio_uz.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Content-Type"], "audio/mpeg")
+        body = b"".join(response.streaming_content)
+        self.assertEqual(body, b"audio-uz")
 
     def test_tts_endpoint_is_removed(self):
         response = self.client.post("/api/tts/", {"text": "Salom dunyo", "lang": "uz"}, format="json")

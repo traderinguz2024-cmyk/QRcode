@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from django.conf import settings
 from django.test import SimpleTestCase
 
 from .env import load_env_file
@@ -38,3 +39,12 @@ class EnvLoaderTests(SimpleTestCase):
             with patch.dict(os.environ, {"TEST_FRONTEND_URL": "https://from-env.example"}, clear=False):
                 load_env_file(env_path)
                 self.assertEqual(os.environ["TEST_FRONTEND_URL"], "https://from-env.example")
+
+
+class StaticServingConfigTests(SimpleTestCase):
+    def test_whitenoise_is_enabled_for_static_files(self):
+        self.assertIn("whitenoise.middleware.WhiteNoiseMiddleware", settings.MIDDLEWARE)
+        self.assertEqual(
+            settings.STORAGES["staticfiles"]["BACKEND"],
+            "whitenoise.storage.CompressedStaticFilesStorage",
+        )

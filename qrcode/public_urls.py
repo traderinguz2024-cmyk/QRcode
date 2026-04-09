@@ -28,7 +28,7 @@ def request_host_name(request):
 
 
 def is_local_development_request(request):
-    return request_host_name(request) in LOCAL_DEVELOPMENT_HOSTS
+    return settings.DEBUG and request_host_name(request) in LOCAL_DEVELOPMENT_HOSTS
 
 
 def backend_public_url(path="", request=None):

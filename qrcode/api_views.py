@@ -14,7 +14,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from .cache_utils import bump_api_cache_version, get_api_cache_version
+from .cache_utils import get_api_cache_version
 from .models import About, Category, Faculty, Product, Teacher
 from .public_urls import backend_public_url, frontend_public_url
 from .serializers import (
@@ -270,7 +270,6 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        bump_api_cache_version()
         headers = self.get_success_headers(serializer.data)
         read_data = ProductReadSerializer(serializer.instance, context=self.get_serializer_context()).data
         return Response(read_data, status=status.HTTP_201_CREATED, headers=headers)
@@ -298,7 +297,6 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        bump_api_cache_version()
         read_data = ProductReadSerializer(serializer.instance, context=self.get_serializer_context()).data
         return Response(read_data)
 
@@ -312,9 +310,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return self.update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        response = super().destroy(request, *args, **kwargs)
-        bump_api_cache_version()
-        return response
+        return super().destroy(request, *args, **kwargs)
 
 
 class FacultyViewSet(viewsets.ModelViewSet):

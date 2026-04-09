@@ -8,6 +8,8 @@ from django.test import TestCase
 from django.test.utils import override_settings
 from rest_framework.test import APIClient
 
+from core.origins import normalize_origin
+
 from .models import Category, Faculty, Product, Teacher
 
 
@@ -202,6 +204,23 @@ class APIFilterTests(TestCase):
         self.assertEqual(payload["frontendUrl"], settings.FRONTEND_URL)
         self.assertEqual(payload["languages"], ["uz", "ru", "en"])
 
+    def test_origin_normalizer_accepts_qr_public_domain(self):
+        self.assertEqual(normalize_origin("qr.akadmvd.uz"), "https://qr.akadmvd.uz")
+        self.assertEqual(normalize_origin("https://qr.akadmvd.uz/"), "https://qr.akadmvd.uz")
+
+    @override_settings(FRONTEND_ALLOWED_ORIGINS=["qr.akadmvd.uz"])
+    def test_cors_allows_qr_public_domain_origin(self):
+        response = self.client.options(
+            "/api/bootstrap/",
+            HTTP_ORIGIN="https://qr.akadmvd.uz",
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="GET",
+        )
+
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response["Access-Control-Allow-Origin"], "https://qr.akadmvd.uz")
+        self.assertEqual(response["Access-Control-Allow-Credentials"], "true")
+        self.assertIn("Origin", response["Vary"])
+
     def test_local_runserver_uses_local_urls(self):
         response = self.client.get("/", HTTP_HOST="127.0.0.1:8000")
 
@@ -274,6 +293,18 @@ class APIFilterTests(TestCase):
         products_response = self.client.get("/api/products/")
         products_payload = products_response.json()
         self.assertEqual(products_payload[0]["qr_code"], f"https://qr.akadmvd.uz/qr/{product.pk}.png")
+
+    @override_settings(
+        FRONTEND_URL="https://qr.akadmvd.uz",
+        BACKEND_URL="https://api.example.com",
+    )
+    def test_product_build_detail_url_uses_frontend_url(self):
+        product = Product.objects.create(name_uz="Frontend URL product")
+
+        self.assertEqual(
+            product.build_detail_url(),
+            f"https://qr.akadmvd.uz/detail/{product.pk}/",
+        )
 
     @override_settings(
         BACKEND_URL="https://qr.akadmvd.uz",

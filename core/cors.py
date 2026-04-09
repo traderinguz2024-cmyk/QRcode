@@ -1,14 +1,22 @@
 from django.conf import settings
 from django.http import HttpResponse
 
+from .origins import normalize_origin
+
 
 class SimpleCORSMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        origin = request.headers.get("Origin")
-        is_allowed_origin = origin in getattr(settings, "FRONTEND_ALLOWED_ORIGINS", [])
+        origin = request.headers.get("Origin", "")
+        normalized_origin = normalize_origin(origin)
+        allowed_origins = {
+            normalized_value
+            for allowed_origin in getattr(settings, "FRONTEND_ALLOWED_ORIGINS", [])
+            if (normalized_value := normalize_origin(allowed_origin))
+        }
+        is_allowed_origin = normalized_origin in allowed_origins
 
         if request.method == "OPTIONS" and is_allowed_origin:
             response = HttpResponse(status=204)

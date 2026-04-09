@@ -12,7 +12,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
-from urllib.parse import urlsplit
+
+from core.origins import normalize_origin_list
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -49,13 +50,6 @@ def env_list(name, default):
         return list(default)
     return [item.strip() for item in value.split(",") if item.strip()]
 
-
-def normalize_origin(url):
-    parts = urlsplit(url)
-    if parts.scheme and parts.netloc:
-        return f"{parts.scheme}://{parts.netloc}"
-    return str(url).rstrip("/")
-
 DEFAULT_PUBLIC_URL = "https://qr.akadmvd.uz"
 ALLOWED_HOSTS = env_list(
     "ALLOWED_HOSTS",
@@ -67,17 +61,19 @@ ALLOWED_HOSTS = env_list(
 )
 BACKEND_URL = os.getenv("BACKEND_URL", DEFAULT_PUBLIC_URL).rstrip("/")
 FRONTEND_URL = os.getenv("FRONTEND_URL", DEFAULT_PUBLIC_URL).rstrip("/")
-FRONTEND_ALLOWED_ORIGINS = [
-    normalize_origin(origin)
-    for origin in env_list(
-        "FRONTEND_ALLOWED_ORIGINS",
-        [
-            FRONTEND_URL,
-            "http://localhost:4173",
-            "http://localhost:5173",
-        ],
-    )
+DEFAULT_FRONTEND_ALLOWED_ORIGINS = [
+    FRONTEND_URL,
+    DEFAULT_PUBLIC_URL,
+    "http://localhost:4173",
+    "http://localhost:5173",
 ]
+FRONTEND_ALLOWED_ORIGINS = normalize_origin_list(
+    [
+        *env_list("FRONTEND_ALLOWED_ORIGINS", DEFAULT_FRONTEND_ALLOWED_ORIGINS),
+        FRONTEND_URL,
+        DEFAULT_PUBLIC_URL,
+    ]
+)
 CSRF_TRUSTED_ORIGINS = FRONTEND_ALLOWED_ORIGINS
 API_RESPONSE_CACHE_TIMEOUT = int(os.getenv("API_RESPONSE_CACHE_TIMEOUT", "120"))
 LOOKUP_RESPONSE_CACHE_TIMEOUT = int(os.getenv("LOOKUP_RESPONSE_CACHE_TIMEOUT", "900"))

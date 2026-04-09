@@ -273,6 +273,12 @@ class APIFilterTests(TestCase):
         self.assertIn("window.QR_APP_CONFIG", body)
         self.assertIn('"defaultLanguage": "ru"', body)
 
+    def test_frontend_index_loads_config_script(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('<script src="/config.js"></script>', response.content.decode("utf-8"))
+
     @override_settings(
         FRONTEND_URL="https://qr.akadmvd.uz",
         BACKEND_URL="https://qr.akadmvd.uz",

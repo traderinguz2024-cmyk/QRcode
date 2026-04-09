@@ -5,6 +5,11 @@ Public domain:
 
 Backend and frontend are currently served together from this repository on the same domain.
 
+Environment:
+```powershell
+Copy-Item .env.example .env
+```
+
 Local run:
 ```powershell
 .\.venv\Scripts\python.exe manage.py runserver
@@ -21,8 +26,10 @@ Production files:
 - [deploy/nginx/qr.akadmvd.uz.conf](deploy/nginx/qr.akadmvd.uz.conf)
 
 Production checklist:
-1. Set `BACKEND_URL` and `FRONTEND_URL` to `https://qr.akadmvd.uz`
-2. Set `DJANGO_SECRET_KEY` to a long random value
-3. Put the nginx config in place and update filesystem paths if needed
-4. Run `collectstatic`
-5. Run `regenerate_qr_codes`
+1. Copy `.env.example` to `.env`
+2. Set `BACKEND_URL` and `FRONTEND_URL` to your HTTPS domain
+3. Set `ALLOWED_HOSTS` and `FRONTEND_ALLOWED_ORIGINS` to that domain
+4. Set `DJANGO_SECRET_KEY` to a long random value
+5. Put the nginx config in place and update filesystem paths if needed
+6. Run `collectstatic`
+7. Run `regenerate_qr_codes`

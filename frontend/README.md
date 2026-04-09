@@ -17,7 +17,9 @@ Run frontend:
 Open:
 
 ```text
-https://qr.akadmvd.uz
+http://localhost:4173
 ```
+
+`config.js` is loaded automatically. By default it uses `window.location.origin`, so same-domain deploys work without edits.
 
 If your backend runs on another host or port, edit [config.js](/C:/Users/Admin/PycharmProjects/QR%20code/frontend/config.js).

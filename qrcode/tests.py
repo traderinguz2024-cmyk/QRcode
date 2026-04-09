@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 
 from core.origins import normalize_origin
 
-from .models import Category, Faculty, Product, Teacher
+from .models import About, Category, Faculty, Product, Teacher
 
 
 class APIFilterTests(TestCase):
@@ -97,6 +97,17 @@ class APIFilterTests(TestCase):
             ],
         )
 
+    def test_lookup_display_name_uses_requested_language(self):
+        self.category_one.name_ru = "Технологии"
+        self.category_one.name_en = "Technology"
+        self.category_one.save(update_fields=["name_ru", "name_en"])
+
+        response = self.client.get("/api/categories/", {"lang": "ru"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = {item["id"]: item for item in response.json()}
+        self.assertEqual(payload[self.category_one.id]["display_name"], "Технологии")
+
     def test_product_filters_by_related_ids_and_search(self):
         response = self.client.get(
             "/api/products/",
@@ -115,6 +126,30 @@ class APIFilterTests(TestCase):
         self.assertEqual(data[0]["faculty_id"], self.faculty_one.id)
         self.assertEqual(data[0]["teacher_id"], self.teacher_one.id)
         self.assertEqual(data[0]["category_id"], self.category_one.id)
+
+    def test_product_response_localizes_related_labels_for_language_switch(self):
+        self.faculty_one.name_ru = "Криминалистика"
+        self.teacher_one.name_ru = "Иван Иванов"
+        self.category_one.name_ru = "Технологии"
+        self.faculty_one.save(update_fields=["name_ru"])
+        self.teacher_one.save(update_fields=["name_ru"])
+        self.category_one.save(update_fields=["name_ru"])
+
+        product = Product.objects.create(
+            name_uz="Kompyuter",
+            name_ru="Компьютер",
+            faculty=self.faculty_one,
+            teacher=self.teacher_one,
+            category=self.category_one,
+        )
+
+        response = self.client.get(f"/api/products/{product.id}/", {"lang": "ru"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["faculty"], "Криминалистика")
+        self.assertEqual(payload["teacher_name"], "Иван Иванов")
+        self.assertEqual(payload["category"], "Технологии")
 
     def test_product_filter_rejects_invalid_integer(self):
         response = self.client.get("/api/products/", {"category_id": "abc"})
@@ -193,6 +228,28 @@ class APIFilterTests(TestCase):
         self.assertEqual(payload["category_id"], self.category_two.id)
         self.assertIn("updated-en", payload["audio"]["en"])
         self.assertTrue(payload["audio"]["en"].endswith(".mp3"))
+
+    def test_about_updates_invalidate_cached_product_payload(self):
+        product = Product.objects.create(
+            name_uz="Kamera",
+            faculty=self.faculty_one,
+            teacher=self.teacher_one,
+            category=self.category_one,
+        )
+
+        first_response = self.client.get(f"/api/products/{product.id}/", {"lang": "uz"})
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(first_response.json()["about"]["uz"], None)
+
+        About.objects.create(
+            item=product,
+            about_uz="Yangilangan batafsil matn",
+            qrcode=SimpleUploadedFile("about.png", b"png", content_type="image/png"),
+        )
+
+        second_response = self.client.get(f"/api/products/{product.id}/", {"lang": "uz"})
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(second_response.json()["about"]["uz"], "Yangilangan batafsil matn")
 
     def test_frontend_bootstrap_sets_csrf_cookie(self):
         response = self.client.get("/api/bootstrap/", HTTP_ORIGIN=settings.FRONTEND_URL)
@@ -324,6 +381,21 @@ class APIFilterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/png")
         self.assertIn(f'product_{product.pk}_qr.png', response["Content-Disposition"])
+
+    @override_settings(
+        BACKEND_URL="https://qr.akadmvd.uz",
+        FRONTEND_URL="https://qr.akadmvd.uz",
+    )
+    def test_product_qr_image_endpoint_rebuilds_missing_png_file(self):
+        product = Product.objects.create(name_uz="QR file missing product")
+        product.qr_code.storage.delete(product.qr_code.name)
+
+        response = self.client.get(f"/qr/{product.pk}.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/png")
+        product.refresh_from_db()
+        self.assertTrue(product.qr_code.storage.exists(product.qr_code.name))
 
     @override_settings(
         BACKEND_URL="https://qr.akadmvd.uz",

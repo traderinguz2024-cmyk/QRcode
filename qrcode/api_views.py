@@ -1,4 +1,3 @@
-import json
 import hashlib
 
 from django.db.models import Q
@@ -15,6 +14,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
+from .cache_utils import bump_api_cache_version, get_api_cache_version
 from .models import About, Category, Faculty, Product, Teacher
 from .public_urls import backend_public_url, frontend_public_url
 from .serializers import (
@@ -26,9 +26,6 @@ from .serializers import (
     ProductWriteSerializer,
     TeacherSerializer,
 )
-
-API_CACHE_VERSION_KEY = "api:response:version"
-
 
 product_request_schema = openapi.Schema(
     type=openapi.TYPE_OBJECT,
@@ -168,19 +165,6 @@ def frontend_bootstrap(request):
             "languages": ["uz", "ru", "en"],
         }
     )
-
-
-def get_api_cache_version():
-    version = cache.get(API_CACHE_VERSION_KEY)
-    if version is None:
-        cache.set(API_CACHE_VERSION_KEY, 1, timeout=None)
-        return 1
-    return int(version)
-
-
-def bump_api_cache_version():
-    current_version = get_api_cache_version()
-    cache.set(API_CACHE_VERSION_KEY, current_version + 1, timeout=None)
 
 
 def build_api_response_cache_key(namespace, request):

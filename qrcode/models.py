@@ -6,9 +6,12 @@ from pathlib import Path
 
 from django.core.files import File
 from django.db import models
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
 from django.urls import reverse
 from django.utils import translation
 
+from .cache_utils import bump_api_cache_version
 from .public_urls import frontend_public_url
 
 
@@ -233,3 +236,24 @@ class Category(models.Model):
 
     def __str__(self):
         return self.get_name()
+
+
+@receiver(post_save, sender=Product, dispatch_uid="qrcode_product_cache_invalidator")
+@receiver(post_save, sender=About, dispatch_uid="qrcode_about_cache_invalidator")
+@receiver(post_save, sender=Category, dispatch_uid="qrcode_category_cache_invalidator")
+@receiver(post_save, sender=Faculty, dispatch_uid="qrcode_faculty_cache_invalidator")
+@receiver(post_save, sender=Teacher, dispatch_uid="qrcode_teacher_cache_invalidator")
+def invalidate_api_cache_on_save(sender, instance, **kwargs):
+    update_fields = kwargs.get("update_fields")
+    if sender is Product and update_fields == {"qr_code"}:
+        return
+    bump_api_cache_version()
+
+
+@receiver(post_delete, sender=Product, dispatch_uid="qrcode_product_cache_delete_invalidator")
+@receiver(post_delete, sender=About, dispatch_uid="qrcode_about_cache_delete_invalidator")
+@receiver(post_delete, sender=Category, dispatch_uid="qrcode_category_cache_delete_invalidator")
+@receiver(post_delete, sender=Faculty, dispatch_uid="qrcode_faculty_cache_delete_invalidator")
+@receiver(post_delete, sender=Teacher, dispatch_uid="qrcode_teacher_cache_delete_invalidator")
+def invalidate_api_cache_on_delete(sender, instance, **kwargs):
+    bump_api_cache_version()

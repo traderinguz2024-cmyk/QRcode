@@ -440,7 +440,7 @@ class APIFilterTests(TestCase):
         self.assertIn(b"(function () {", body)
 
     @override_settings(DEBUG=False)
-    def test_media_files_are_served_without_nginx(self):
+    def test_media_files_are_served_in_production(self):
         product = Product.objects.create(
             name_uz="Audio product",
             audio_uz=SimpleUploadedFile("audio-uz.mp3", b"audio-uz", content_type="audio/mpeg"),

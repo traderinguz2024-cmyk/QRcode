@@ -24,9 +24,8 @@ python manage.py regenerate_qr_codes
 Production files:
 - [.env.example](.env.example)
 - [deploy/run_gunicorn.py](deploy/run_gunicorn.py)
-- [deploy/nginx/qr.akadmvd.uz.conf](deploy/nginx/qr.akadmvd.uz.conf) (optional)
 
-Production checklist without nginx:
+Production checklist:
 1. Copy `.env.example` to `.env`
 2. Set `BACKEND_URL` and `FRONTEND_URL` to your HTTPS domain
 3. Set `ALLOWED_HOSTS` and `FRONTEND_ALLOWED_ORIGINS` to that domain

@@ -1,8 +1,8 @@
 from io import StringIO
-from unittest.mock import patch
 
 from django.conf import settings
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase
 from django.test.utils import override_settings
@@ -121,6 +121,10 @@ class APIFilterTests(TestCase):
         self.assertEqual(response.json(), {"category_id": "Must be an integer."})
 
     def test_product_can_be_created_from_flat_multipart_fields(self):
+        audio_uz = SimpleUploadedFile("audio-uz.mp3", b"audio-uz", content_type="audio/mpeg")
+        audio_ru = SimpleUploadedFile("audio-ru.mp3", b"audio-ru", content_type="audio/mpeg")
+        audio_en = SimpleUploadedFile("audio-en.mp3", b"audio-en", content_type="audio/mpeg")
+
         response = self.client.post(
             "/api/products/",
             {
@@ -133,6 +137,9 @@ class APIFilterTests(TestCase):
                 "faculty_id": self.faculty_one.id,
                 "teacher_id": self.teacher_one.id,
                 "category_id": self.category_one.id,
+                "audio_uz": audio_uz,
+                "audio_ru": audio_ru,
+                "audio_en": audio_en,
             },
             format="multipart",
         )
@@ -145,6 +152,12 @@ class APIFilterTests(TestCase):
         self.assertEqual(payload["faculty_id"], self.faculty_one.id)
         self.assertEqual(payload["teacher_id"], self.teacher_one.id)
         self.assertEqual(payload["category_id"], self.category_one.id)
+        self.assertIn("audio-uz", payload["audio"]["uz"])
+        self.assertIn("audio-ru", payload["audio"]["ru"])
+        self.assertIn("audio-en", payload["audio"]["en"])
+        self.assertTrue(payload["audio"]["uz"].endswith(".mp3"))
+        self.assertTrue(payload["audio"]["ru"].endswith(".mp3"))
+        self.assertTrue(payload["audio"]["en"].endswith(".mp3"))
 
     def test_product_can_be_updated_from_flat_multipart_fields(self):
         product = Product.objects.create(
@@ -154,6 +167,7 @@ class APIFilterTests(TestCase):
             teacher=self.teacher_one,
             category=self.category_one,
         )
+        updated_audio = SimpleUploadedFile("updated-en.mp3", b"updated-en", content_type="audio/mpeg")
 
         response = self.client.patch(
             f"/api/products/{product.id}/",
@@ -163,6 +177,7 @@ class APIFilterTests(TestCase):
                 "faculty_id": self.faculty_two.id,
                 "teacher_id": self.teacher_two.id,
                 "category_id": self.category_two.id,
+                "audio_en": updated_audio,
             },
             format="multipart",
         )
@@ -174,6 +189,8 @@ class APIFilterTests(TestCase):
         self.assertEqual(payload["faculty_id"], self.faculty_two.id)
         self.assertEqual(payload["teacher_id"], self.teacher_two.id)
         self.assertEqual(payload["category_id"], self.category_two.id)
+        self.assertIn("updated-en", payload["audio"]["en"])
+        self.assertTrue(payload["audio"]["en"].endswith(".mp3"))
 
     def test_frontend_bootstrap_sets_csrf_cookie(self):
         response = self.client.get("/api/bootstrap/", HTTP_ORIGIN=settings.FRONTEND_URL)
@@ -293,28 +310,8 @@ class APIFilterTests(TestCase):
         body = b"".join(response.streaming_content)
         self.assertIn(b"(function () {", body)
 
-    @override_settings(YANDEX_TTS_API_KEY="")
-    @patch("qrcode.api_views.edge_tts", None)
-    def test_tts_endpoint_returns_error_when_no_server_provider_available(self):
+
+    def test_tts_endpoint_is_removed(self):
         response = self.client.post("/api/tts/", {"text": "Salom dunyo", "lang": "uz"}, format="json")
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("detail", response.json())
-
-    @patch("qrcode.api_views.synthesize_edge_tts", return_value=b"audio-bytes")
-    def test_tts_endpoint_returns_audio_bytes_from_edge_tts(self, synthesize_edge_tts_mock):
-        response = self.client.post("/api/tts/", {"text": "Salom dunyo", "lang": "uz"}, format="json")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "audio/mpeg")
-        self.assertEqual(response.content, b"audio-bytes")
-        synthesize_edge_tts_mock.assert_called_once()
-
-    @patch("qrcode.api_views.synthesize_gtts", return_value=b"audio-bytes-ru")
-    def test_tts_endpoint_supports_russian_and_english(self, synthesize_gtts_mock):
-        response = self.client.post("/api/tts/", {"text": "Привет мир", "lang": "ru"}, format="json")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "audio/mpeg")
-        self.assertEqual(response.content, b"audio-bytes-ru")
-        synthesize_gtts_mock.assert_called_once_with("Привет мир", "ru")
+        self.assertEqual(response.status_code, 404)

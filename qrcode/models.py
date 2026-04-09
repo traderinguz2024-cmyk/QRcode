@@ -50,6 +50,7 @@ def get_current_language():
 
 
 def tts_cache_upload_to(instance, filename):
+    # Kept for historical migrations that still import this callable.
     provider_key = "".join(
         character.lower() if character.isalnum() else "_"
         for character in (instance.provider or "tts")
@@ -214,30 +215,6 @@ class About(models.Model):
 
     def __str__(self):
         return self.get_about("uz")
-
-
-class PersistentTtsAudio(models.Model):
-    language = models.CharField(max_length=8, db_index=True)
-    provider = models.CharField(max_length=120, db_index=True)
-    text_hash = models.CharField(max_length=64, db_index=True)
-    source_text = models.TextField()
-    content_type = models.CharField(max_length=64, default="audio/mpeg")
-    extension = models.CharField(max_length=16, default="mp3")
-    audio_blob = models.BinaryField(blank=True, null=True, editable=False)
-    audio_file = models.FileField(upload_to=tts_cache_upload_to)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["language", "provider", "text_hash"],
-                name="unique_persistent_tts_audio_entry",
-            )
-        ]
-
-    def __str__(self):
-        return f"{self.language}:{self.provider}:{self.text_hash[:10]}"
 
 
 class Category(models.Model):

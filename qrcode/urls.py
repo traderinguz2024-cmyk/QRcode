@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .api_views import AboutViewSet, CategoryViewSet, FacultyViewSet, ProductViewSet, TeacherViewSet, frontend_bootstrap, text_to_speech
+from .api_views import AboutViewSet, CategoryViewSet, FacultyViewSet, ProductViewSet, TeacherViewSet, frontend_bootstrap
 from .views import *
 
 router = DefaultRouter()
@@ -21,6 +21,5 @@ urlpatterns = [
     path('delete/<int:id>/', DeleteItemView.as_view(), name='delete_item'),
     path("config.js", frontend_config, name="frontend-config"),
     path("api/bootstrap/", frontend_bootstrap, name="api-frontend-bootstrap"),
-    path("api/tts/", text_to_speech, name="api-text-to-speech"),
     path("api/", include(router.urls)),
 ]

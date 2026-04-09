@@ -79,14 +79,6 @@ FRONTEND_ALLOWED_ORIGINS = [
     )
 ]
 CSRF_TRUSTED_ORIGINS = FRONTEND_ALLOWED_ORIGINS
-YANDEX_TTS_API_KEY = os.getenv("YANDEX_TTS_API_KEY", "").strip()
-YANDEX_TTS_API_URL = os.getenv("YANDEX_TTS_API_URL", "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize").strip()
-YANDEX_TTS_UZ_VOICE = os.getenv("YANDEX_TTS_UZ_VOICE", "yulduz").strip() or "yulduz"
-YANDEX_TTS_TIMEOUT = float(os.getenv("YANDEX_TTS_TIMEOUT", "20"))
-EDGE_TTS_UZ_VOICE = os.getenv("EDGE_TTS_UZ_VOICE", "uz-UZ-MadinaNeural").strip() or "uz-UZ-MadinaNeural"
-EDGE_TTS_RU_VOICE = os.getenv("EDGE_TTS_RU_VOICE", "ru-RU-SvetlanaNeural").strip() or "ru-RU-SvetlanaNeural"
-EDGE_TTS_EN_VOICE = os.getenv("EDGE_TTS_EN_VOICE", "en-US-JennyNeural").strip() or "en-US-JennyNeural"
-TTS_CACHE_TIMEOUT = int(os.getenv("TTS_CACHE_TIMEOUT", "86400"))
 API_RESPONSE_CACHE_TIMEOUT = int(os.getenv("API_RESPONSE_CACHE_TIMEOUT", "120"))
 LOOKUP_RESPONSE_CACHE_TIMEOUT = int(os.getenv("LOOKUP_RESPONSE_CACHE_TIMEOUT", "900"))
 

@@ -1,18 +1,10 @@
 import json
-import asyncio
 import hashlib
-from io import BytesIO
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request as UrlRequest
-from urllib.request import urlopen
 
 from django.db.models import Q
 from django.conf import settings
 from django.core.cache import cache
-from django.core.files.base import ContentFile
 from django.middleware.csrf import get_token
-from django.http import HttpResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -23,17 +15,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-try:
-    import edge_tts
-except ImportError:  # pragma: no cover - optional dependency
-    edge_tts = None
-
-try:
-    from gtts import gTTS
-except ImportError:  # pragma: no cover - optional dependency
-    gTTS = None
-
-from .models import About, Category, Faculty, PersistentTtsAudio, Product, Teacher
+from .models import About, Category, Faculty, Product, Teacher
 from .public_urls import backend_public_url, frontend_public_url
 from .serializers import (
     AboutReadSerializer,
@@ -182,175 +164,10 @@ def frontend_bootstrap(request):
                 "categories": backend_public_url("/api/categories/", request=request),
                 "faculties": backend_public_url("/api/faculties/", request=request),
                 "teachers": backend_public_url("/api/teachers/", request=request),
-                "tts": backend_public_url("/api/tts/", request=request),
             },
             "languages": ["uz", "ru", "en"],
-            "tts": {
-                "provider": "hybrid" if gTTS or edge_tts else ("yandex" if settings.YANDEX_TTS_API_KEY else ""),
-            },
         }
     )
-
-
-async def _edge_tts_bytes(text, voice):
-    communicate = edge_tts.Communicate(text, voice=voice)
-    audio_chunks = []
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            audio_chunks.append(chunk["data"])
-    return b"".join(audio_chunks)
-
-
-def synthesize_edge_tts(text, language):
-    if language != "uz":
-        raise ValidationError({"lang": "Edge TTS is currently enabled only for Uzbek."})
-    if edge_tts is None:
-        raise ValidationError({"detail": "Edge TTS is not available on the server."})
-    return asyncio.run(_edge_tts_bytes(text, settings.EDGE_TTS_UZ_VOICE))
-
-
-def synthesize_gtts(text, language):
-    if language not in {"ru", "en"}:
-        raise ValidationError({"lang": "Google TTS is currently enabled only for Russian and English."})
-    if gTTS is None:
-        raise ValidationError({"detail": "gTTS is not available on the server."})
-
-    buffer = BytesIO()
-    gTTS(text=text, lang=language).write_to_fp(buffer)
-    return buffer.getvalue()
-
-
-def synthesize_yandex_tts(text, language):
-    if language != "uz":
-        raise ValidationError({"lang": "Server-side TTS is currently enabled only for Uzbek."})
-    if not settings.YANDEX_TTS_API_KEY:
-        raise ValidationError({"detail": "Yandex TTS is not configured on the server."})
-
-    payload = urlencode(
-        {
-            "text": text,
-            "lang": "uz-UZ",
-            "voice": settings.YANDEX_TTS_UZ_VOICE,
-            "format": "oggopus",
-        }
-    ).encode("utf-8")
-    request = UrlRequest(
-        settings.YANDEX_TTS_API_URL,
-        data=payload,
-        headers={
-            "Authorization": f"Api-Key {settings.YANDEX_TTS_API_KEY}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        method="POST",
-    )
-
-    try:
-        with urlopen(request, timeout=settings.YANDEX_TTS_TIMEOUT) as response:
-            return response.read()
-    except HTTPError as exc:
-        error_body = exc.read().decode("utf-8", errors="ignore")
-        raise ValidationError({"detail": error_body or "Yandex TTS request failed."}) from exc
-    except URLError as exc:
-        raise ValidationError({"detail": "Unable to reach Yandex TTS."}) from exc
-
-
-def resolve_tts_backend(language):
-    if language == "uz":
-        if edge_tts is not None:
-            return {
-                "provider": f"edge-tts:{settings.EDGE_TTS_UZ_VOICE}",
-                "content_type": "audio/mpeg",
-                "extension": "mp3",
-                "synthesizer": synthesize_edge_tts,
-            }
-        return {
-            "provider": f"yandex:{settings.YANDEX_TTS_UZ_VOICE}",
-            "content_type": "audio/ogg",
-            "extension": "ogg",
-            "synthesizer": synthesize_yandex_tts,
-        }
-    if language in {"ru", "en"}:
-        return {
-            "provider": f"gtts:{language}",
-            "content_type": "audio/mpeg",
-            "extension": "mp3",
-            "synthesizer": synthesize_gtts,
-        }
-    raise ValidationError({"lang": "Supported languages are uz, ru, and en."})
-
-
-def build_tts_cache_key(language, text, provider):
-    digest = build_tts_text_digest(text)
-    return f"tts:{provider}:{language}:{digest}"
-
-
-def build_tts_text_digest(text):
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
-def persistent_tts_entry_has_blob(entry):
-    return bool(entry is not None and entry.audio_blob is not None and len(entry.audio_blob) > 0)
-
-
-def persistent_tts_entry_has_audio(entry):
-    return bool(entry is not None and (persistent_tts_entry_has_blob(entry) or entry.audio_file))
-
-
-def load_persistent_tts_entry(language, text_digest, provider):
-    exact_entry = PersistentTtsAudio.objects.filter(
-        language=language,
-        provider=provider,
-        text_hash=text_digest,
-    ).first()
-    if persistent_tts_entry_has_audio(exact_entry):
-        return exact_entry
-
-    fallback_entry = PersistentTtsAudio.objects.filter(
-        language=language,
-        text_hash=text_digest,
-    ).exclude(provider=provider).order_by("-updated_at").first()
-    if persistent_tts_entry_has_audio(fallback_entry):
-        return fallback_entry
-    return None
-
-
-def read_persistent_tts_audio(entry):
-    if persistent_tts_entry_has_blob(entry):
-        return bytes(entry.audio_blob)
-
-    if not entry or not entry.audio_file:
-        return None
-
-    try:
-        with entry.audio_file.open("rb") as audio_stream:
-            return audio_stream.read()
-    except OSError:
-        return None
-
-
-def persist_tts_audio(language, text, text_digest, provider, content_type, extension, audio_bytes):
-    entry, _ = PersistentTtsAudio.objects.get_or_create(
-        language=language,
-        provider=provider,
-        text_hash=text_digest,
-        defaults={
-            "source_text": text,
-            "content_type": content_type,
-            "extension": extension,
-        },
-    )
-    entry.source_text = text
-    entry.content_type = content_type
-    entry.extension = extension
-    entry.audio_blob = audio_bytes
-
-    has_stored_file = bool(entry.audio_file and entry.audio_file.name and entry.audio_file.storage.exists(entry.audio_file.name))
-    if not has_stored_file:
-        file_name = f"{text_digest}.{extension.lstrip('.') or 'mp3'}"
-        entry.audio_file.save(file_name, ContentFile(audio_bytes), save=False)
-
-    entry.save()
-    return entry
 
 
 def get_api_cache_version():
@@ -379,62 +196,6 @@ def get_cached_api_payload(namespace, request):
 def cache_api_payload(namespace, request, payload, timeout):
     cache.set(build_api_response_cache_key(namespace, request), payload, timeout=timeout)
     return payload
-
-
-@swagger_auto_schema(
-    method="post",
-    operation_summary="Synthesize speech from text",
-    request_body=openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        properties={
-            "text": openapi.Schema(type=openapi.TYPE_STRING),
-            "lang": openapi.Schema(type=openapi.TYPE_STRING, default="uz"),
-        },
-        required=["text"],
-    ),
-    responses={200: "audio"},
-)
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def text_to_speech(request):
-    text = str(request.data.get("text", "")).strip()
-    language = str(request.data.get("lang", "uz")).strip().lower()
-
-    if not text:
-        raise ValidationError({"text": "This field is required."})
-    backend = resolve_tts_backend(language)
-    text_digest = build_tts_text_digest(text)
-    cache_key = build_tts_cache_key(language, text, backend["provider"])
-    audio_bytes = cache.get(cache_key)
-    response_content_type = backend["content_type"]
-    response_extension = backend["extension"]
-    if audio_bytes is None:
-        persistent_entry = load_persistent_tts_entry(language, text_digest, backend["provider"])
-        if persistent_entry is not None:
-            audio_bytes = read_persistent_tts_audio(persistent_entry)
-            if audio_bytes is not None:
-                response_content_type = persistent_entry.content_type or response_content_type
-                response_extension = persistent_entry.extension or response_extension
-    if audio_bytes is None:
-        audio_bytes = backend["synthesizer"](text, language)
-        persisted_entry = persist_tts_audio(
-            language,
-            text,
-            text_digest,
-            backend["provider"],
-            backend["content_type"],
-            backend["extension"],
-            audio_bytes,
-        )
-        response_content_type = persisted_entry.content_type or response_content_type
-        response_extension = persisted_entry.extension or response_extension
-    if audio_bytes is not None:
-        cache.set(cache_key, audio_bytes, timeout=settings.TTS_CACHE_TIMEOUT)
-
-    response = HttpResponse(audio_bytes, content_type=response_content_type)
-    response["Content-Disposition"] = f'inline; filename="tts.{response_extension}"'
-    response["Cache-Control"] = "no-store"
-    return response
 
 
 class ProductViewSet(viewsets.ModelViewSet):

@@ -13,10 +13,6 @@
     var lookupBundleRequests = Object.create(null);
     var jsonResponseCache = new Map();
     var jsonResponseRequestCache = new Map();
-    var ttsAudioBlobCache = new Map();
-    var ttsAudioRequestCache = new Map();
-    var speechPlaybackId = 0;
-    var speechVoicesPromise = null;
 
     var TRANSLATIONS = {
         uz: {
@@ -56,9 +52,7 @@
             deleteQuestion: "{name} yozuvini o'chirmoqchimisiz?",
             saveSuccess: "Saqlandi.",
             coverMissing: "Muqova rasmi yo'q",
-            qrMissing: "QR hali yaratilmagan",
-            ttsPlaying: "Tavsif avtomatik ovozda o'qilmoqda.",
-            ttsUnsupported: "Brauzerda avtomatik ovozli o'qish mavjud emas."
+            qrMissing: "QR hali yaratilmagan"
         },
         ru: {
             listError: "Не удалось загрузить объекты.",
@@ -138,9 +132,7 @@
             deleteQuestion: "Delete the {name} entry?",
             saveSuccess: "Saved.",
             coverMissing: "No cover image",
-            qrMissing: "QR has not been generated yet",
-            ttsPlaying: "The description is being read automatically.",
-            ttsUnsupported: "Automatic speech is not available in this browser."
+            qrMissing: "QR has not been generated yet"
         }
     };
 
@@ -165,7 +157,6 @@
         pageRoot.dataset.apiCategories = backendUrl("/api/categories/");
         pageRoot.dataset.apiFaculties = backendUrl("/api/faculties/");
         pageRoot.dataset.apiTeachers = backendUrl("/api/teachers/");
-        pageRoot.dataset.apiTts = backendUrl("/api/tts/");
         pageRoot.dataset.indexUrl = frontendUrl("/");
         pageRoot.dataset.addUrl = frontendUrl("/add/");
         pageRoot.dataset.detailPattern = frontendUrl("/detail/999999/");
@@ -312,143 +303,18 @@
         return new URL(url, BACKEND_ORIGIN + "/").toString();
     }
 
-    function supportsSpeechPlayback() {
-        return typeof window !== "undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance !== "undefined";
-    }
-
     function normalizeSpeechText(text) {
         return String(text || "").replace(/\s+/g, " ").trim();
     }
 
-    function getSpeechLocale(langCode) {
-        var currentLanguage = normalizeLanguage(langCode || language);
-        if (currentLanguage === "ru") {
-            return "ru-RU";
-        }
-        if (currentLanguage === "en") {
-            return "en-US";
-        }
-        return "uz-UZ";
-    }
-
-    function loadSpeechVoices() {
-        if (!supportsSpeechPlayback()) {
-            return Promise.resolve([]);
-        }
-        if (speechVoicesPromise) {
-            return speechVoicesPromise;
-        }
-
-        speechVoicesPromise = new Promise(function (resolve) {
-            var synth = window.speechSynthesis;
-            var resolved = false;
-
-            function finish() {
-                if (resolved) {
-                    return;
-                }
-                resolved = true;
-                synth.removeEventListener("voiceschanged", finish);
-                resolve(synth.getVoices() || []);
+    function stopActiveMediaPlayback(scope) {
+        Array.prototype.forEach.call((scope || document).querySelectorAll("audio, video"), function (media) {
+            if (typeof media.pause === "function") {
+                media.pause();
             }
-
-            var initialVoices = synth.getVoices();
-            if (initialVoices && initialVoices.length) {
-                resolved = true;
-                resolve(initialVoices);
-                return;
-            }
-
-            synth.addEventListener("voiceschanged", finish);
-            window.setTimeout(finish, 600);
-        });
-
-        return speechVoicesPromise;
-    }
-
-    function pickSpeechVoice(voices, locale) {
-        var localePrefix = locale.split("-")[0].toLowerCase();
-        return (voices || []).slice().sort(function (left, right) {
-            function score(voice) {
-                var voiceLang = String(voice.lang || "").toLowerCase();
-                var voiceName = String(voice.name || "").toLowerCase();
-                var currentScore = 0;
-                if (voiceLang === locale.toLowerCase()) {
-                    currentScore += 8;
-                } else if (voiceLang.indexOf(localePrefix) === 0) {
-                    currentScore += 5;
-                }
-                if (voiceName.indexOf("google") !== -1) {
-                    currentScore += 3;
-                }
-                if (voice.default) {
-                    currentScore += 2;
-                }
-                if (voice.localService) {
-                    currentScore += 1;
-                }
-                return currentScore;
-            }
-
-            return score(right) - score(left);
-        })[0] || null;
-    }
-
-    function stopSpeechPlayback() {
-        speechPlaybackId += 1;
-        if (supportsSpeechPlayback()) {
-            window.speechSynthesis.cancel();
-        }
-    }
-
-    function startSpeechPlayback(text, langCode, callbacks) {
-        var speechText = normalizeSpeechText(text);
-        if (!speechText) {
-            return Promise.resolve();
-        }
-        if (!supportsSpeechPlayback()) {
-            return Promise.reject(new Error("speech-unavailable"));
-        }
-
-        stopSpeechPlayback();
-        var playbackId = speechPlaybackId;
-        var locale = getSpeechLocale(langCode);
-
-        return loadSpeechVoices().then(function (voices) {
-            return new Promise(function (resolve, reject) {
-                var utterance = new window.SpeechSynthesisUtterance(speechText);
-                var selectedVoice = pickSpeechVoice(voices, locale);
-
-                utterance.lang = locale;
-                utterance.rate = locale === "ru-RU" ? 0.96 : 1;
-                utterance.pitch = 1;
-                utterance.volume = 1;
-                if (selectedVoice) {
-                    utterance.voice = selectedVoice;
-                }
-
-                utterance.onend = function () {
-                    if (playbackId !== speechPlaybackId) {
-                        return;
-                    }
-                    if (callbacks && typeof callbacks.onend === "function") {
-                        callbacks.onend();
-                    }
-                    resolve();
-                };
-
-                utterance.onerror = function (event) {
-                    if (playbackId !== speechPlaybackId) {
-                        return;
-                    }
-                    if (callbacks && typeof callbacks.onerror === "function") {
-                        callbacks.onerror(event);
-                    }
-                    reject(new Error((event && event.error) || "speech-error"));
-                };
-
-                window.speechSynthesis.speak(utterance);
-            });
+            try {
+                media.currentTime = 0;
+            } catch (error) {}
         });
     }
 
@@ -794,82 +660,6 @@
         return requestPromise;
     }
 
-    async function requestBlob(url, options) {
-        var prepared = prepareRequestOptions(options);
-        var method = String(prepared.method || "GET").toUpperCase();
-
-        if (["POST", "PUT", "PATCH", "DELETE"].indexOf(method) !== -1) {
-            if (!prepared.headers["X-CSRFToken"]) {
-                prepared.headers["X-CSRFToken"] = getCsrfToken();
-            }
-            if (!prepared.headers["X-CSRFToken"]) {
-                await ensureBootstrap();
-                prepared.headers["X-CSRFToken"] = getCsrfToken();
-            }
-        }
-
-        var response = await fetch(url, prepared);
-        if (!response.ok) {
-            var contentType = response.headers.get("content-type") || "";
-            var payload;
-            if (contentType.indexOf("application/json") !== -1) {
-                payload = await response.json();
-            } else {
-                payload = await response.text();
-            }
-            var error = new Error(flattenError(payload) || response.statusText);
-            error.payload = payload;
-            throw error;
-        }
-        return response.blob();
-    }
-
-    function buildTtsAudioCacheKey(identifier, langCode, text) {
-        return [String(identifier || ""), normalizeLanguage(langCode || language), normalizeSpeechText(text)].join("::");
-    }
-
-    function rememberTtsAudioBlob(cacheKey, audioBlob) {
-        if (!cacheKey || !audioBlob) {
-            return;
-        }
-        if (!ttsAudioBlobCache.has(cacheKey) && ttsAudioBlobCache.size >= 24) {
-            var oldestKey = ttsAudioBlobCache.keys().next().value;
-            if (oldestKey) {
-                ttsAudioBlobCache.delete(oldestKey);
-            }
-        }
-        ttsAudioBlobCache.set(cacheKey, audioBlob);
-    }
-
-    function prefetchTtsAudio(ttsUrl, identifier, langCode, text) {
-        var speechText = normalizeSpeechText(text);
-        if (!ttsUrl || !speechText) {
-            return Promise.resolve(null);
-        }
-        var cacheKey = buildTtsAudioCacheKey(identifier, langCode, speechText);
-        if (ttsAudioBlobCache.has(cacheKey)) {
-            return Promise.resolve(ttsAudioBlobCache.get(cacheKey));
-        }
-        if (ttsAudioRequestCache.has(cacheKey)) {
-            return ttsAudioRequestCache.get(cacheKey);
-        }
-        var requestPromise = requestBlob(ttsUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                text: speechText,
-                lang: normalizeLanguage(langCode || language)
-            })
-        }).then(function (audioBlob) {
-            rememberTtsAudioBlob(cacheKey, audioBlob);
-            return audioBlob;
-        }).finally(function () {
-            ttsAudioRequestCache.delete(cacheKey);
-        });
-        ttsAudioRequestCache.set(cacheKey, requestPromise);
-        return requestPromise;
-    }
-
     function showFeedback(element, message, variant) {
         if (!element) {
             return;
@@ -1084,6 +874,9 @@
             '        <h2>' + escapeHtml(choose(langCode, { uz: "Mavjud ko\'rinish", ru: "Текущий вид", en: "Current preview" })) + "</h2>",
             '        <div class="asset-preview asset-preview--empty" data-preview-image>' + escapeHtml(t("coverMissing", null, langCode)) + "</div>",
             '        <div class="status-row">',
+            '            <span class="status-chip" data-status-chip="audio_uz">Audio UZ</span>',
+            '            <span class="status-chip" data-status-chip="audio_ru">Audio RU</span>',
+            '            <span class="status-chip" data-status-chip="audio_en">Audio EN</span>',
             '            <span class="status-chip" data-status-chip="video_uz">Video UZ</span>',
             '            <span class="status-chip" data-status-chip="video_ru">Video RU</span>',
             '            <span class="status-chip" data-status-chip="video_en">Video EN</span>',
@@ -1332,7 +1125,7 @@
 
         setNavigationState(true);
         try {
-            stopSpeechPlayback();
+            stopActiveMediaPlayback();
             renderRouteShell(route);
             if (!navigationOptions.fromPopState) {
                 var stateMethod = navigationOptions.replace ? "replaceState" : "pushState";
@@ -1791,12 +1584,11 @@
                 var primaryStory = aboutText || description;
                 var storyModel = buildStoryModel(primaryStory);
                 var specHighlights = buildSpecHighlights(name, primaryStory, product);
-                var speechText = normalizeSpeechText(primaryStory);
-                var hasSpeechText = !!speechText;
                 var summary = trimTextValue(primaryStory) || t("shortDescriptionMissing", null, pageLanguage);
                 var qrUrl = product.qr_code && resolveUrl(product.qr_code);
+                var audioUrl = localizeAssetValue(product.audio, pageLanguage);
                 var videoUrl = localizeAssetValue(product.video, pageLanguage);
-                var isVideoEnabled = false;
+                var isVideoEnabled = !!videoUrl;
                 var category = product.category || t("notAssigned", null, pageLanguage);
                 var faculty = product.faculty || t("notAssigned", null, pageLanguage);
                 var teacher = product.teacher_name || t("notAssigned", null, pageLanguage);
@@ -1865,10 +1657,7 @@
                 var inlineViewerTitle = pageRoot.querySelector("[data-inline-viewer-title]");
                 var mobileDockHost = pageRoot.querySelector("[data-media-dock-mobile]");
                 var currentViewerKind = "";
-                var generatedAudioUrl = "";
-                var useServerTts = !!pageRoot.dataset.apiTts && hasSpeechText;
-                var audioRequestPromise = null;
-                var audioCacheKey = useServerTts ? [productId, pageLanguage, speechText].join("::") : "";
+                var hasAudioPlayback = !!audioUrl;
                 var viewerFlowMediaQuery = typeof window !== "undefined" && typeof window.matchMedia === "function"
                     ? window.matchMedia("(max-width: 760px)")
                     : null;
@@ -1913,25 +1702,6 @@
                 }
                 syncMediaDockPlacement();
 
-                function clearGeneratedAudio() {
-                    if (generatedAudioUrl) {
-                        URL.revokeObjectURL(generatedAudioUrl);
-                        generatedAudioUrl = "";
-                    }
-                }
-
-                function setAudioBusy(isBusy) {
-                    if (!audioAction) {
-                        return;
-                    }
-                    audioAction.classList.toggle("detail-action--loading", !!isBusy);
-                    if (isBusy) {
-                        audioAction.setAttribute("aria-busy", "true");
-                    } else {
-                        audioAction.removeAttribute("aria-busy");
-                    }
-                }
-
                 function inlineViewerHeading(kind) {
                     if (kind === "audio") {
                         return choose(pageLanguage, { uz: "Audio", ru: "Аудио", en: "Audio" });
@@ -1954,14 +1724,12 @@
                     }
                     inlineViewer.classList.remove("detail-inline-viewer--audio", "detail-inline-viewer--video", "detail-inline-viewer--qr");
                     if (!currentViewerKind) {
-                        clearGeneratedAudio();
+                        stopActiveMediaPlayback(inlineViewerBody);
                         inlineViewer.hidden = true;
                         inlineViewerBody.innerHTML = "";
                         return;
                     }
-                    if (currentViewerKind !== "audio") {
-                        clearGeneratedAudio();
-                    }
+                    stopActiveMediaPlayback(inlineViewerBody);
                     inlineViewer.hidden = false;
                     inlineViewer.classList.add("detail-inline-viewer--" + currentViewerKind);
                     if (inlineViewerTitle) {
@@ -1983,66 +1751,34 @@
                 }
 
                 function closeInlineViewer() {
-                    stopSpeechPlayback();
+                    stopActiveMediaPlayback(inlineViewerBody || inlineViewer || pageRoot);
                     setInlineViewer("", "");
                 }
 
-                function loadServerAudioBlob() {
-                    if (!speechText) {
-                        return Promise.reject(new Error("tts-missing-text"));
-                    }
-                    if (audioCacheKey && ttsAudioBlobCache.has(audioCacheKey)) {
-                        return Promise.resolve(ttsAudioBlobCache.get(audioCacheKey));
-                    }
-                    if (audioRequestPromise) {
-                        return audioRequestPromise;
-                    }
-                    setAudioBusy(true);
-                    audioRequestPromise = prefetchTtsAudio(pageRoot.dataset.apiTts, productId, pageLanguage, speechText).then(function (audioBlob) {
-                        if (audioCacheKey && audioBlob) {
-                            rememberTtsAudioBlob(audioCacheKey, audioBlob);
-                        }
-                        return audioBlob;
-                    }).finally(function () {
-                        audioRequestPromise = null;
-                        if (isActivePage(pageRoot, runId)) {
-                            setAudioBusy(false);
-                        }
-                    });
-                    return audioRequestPromise;
-                }
-
-                function playServerAudio() {
-                    stopSpeechPlayback();
-                    clearGeneratedAudio();
-                    return loadServerAudioBlob().then(function (audioBlob) {
-                        if (!isActivePage(pageRoot, runId) || !audioBlob) {
-                            return;
-                        }
-                        generatedAudioUrl = URL.createObjectURL(audioBlob);
-                        setInlineViewer("audio", generatedAudioUrl);
-                    });
+                function openAudioViewer(url) {
+                    stopActiveMediaPlayback(inlineViewerBody || inlineViewer || pageRoot);
+                    setInlineViewer("audio", url);
                 }
 
                 if (audioAction) {
-                    audioAction.classList.toggle("detail-action--muted", !useServerTts);
+                    audioAction.classList.toggle("detail-action--muted", !hasAudioPlayback);
+                    if (hasAudioPlayback) {
+                        audioAction.removeAttribute("aria-disabled");
+                    } else {
+                        audioAction.setAttribute("aria-disabled", "true");
+                    }
                     audioAction.href = "#";
                     audioAction.onclick = function (event) {
                         event.preventDefault();
-                        if (!useServerTts) {
-                            showFeedback(feedback, t("ttsUnsupported", null, pageLanguage), "error");
+                        if (!hasAudioPlayback) {
+                            showFeedback(feedback, t("noAudio", null, pageLanguage), "error");
                             return;
                         }
                         if (currentViewerKind === "audio") {
                             closeInlineViewer();
                             return;
                         }
-                        playServerAudio().catch(function (error) {
-                            if (!isActivePage(pageRoot, runId)) {
-                                return;
-                            }
-                            showFeedback(feedback, flattenError(error.payload) || t("ttsUnsupported", null, pageLanguage), "error");
-                        });
+                        openAudioViewer(audioUrl);
                     };
                 }
 
@@ -2070,7 +1806,7 @@
                             closeInlineViewer();
                             return;
                         }
-                        stopSpeechPlayback();
+                        stopActiveMediaPlayback(inlineViewerBody || inlineViewer || pageRoot);
                         setInlineViewer(kind, url);
                     };
                 });
@@ -2128,7 +1864,7 @@
                 if (!isActivePage(pageRoot, runId)) {
                     return;
                 }
-                stopSpeechPlayback();
+                stopActiveMediaPlayback(pageRoot);
                 showFeedback(feedback, flattenError(error.payload) || t("detailError", null, pageLanguage), "error");
             })
             .finally(function () {
@@ -2156,7 +1892,7 @@
                 payload.append(pair[1], form.elements[pair[0]].value || "");
             }
         });
-        ["img", "video_uz", "video_ru", "video_en"].forEach(function (name) {
+        ["img", "audio_uz", "audio_ru", "audio_en", "video_uz", "video_ru", "video_en"].forEach(function (name) {
             var input = form.elements[name];
             if (input && input.files && input.files[0]) {
                 payload.append(name, input.files[0]);
@@ -2209,7 +1945,7 @@
 
         Array.prototype.forEach.call(pageRoot.querySelectorAll("[data-status-chip]"), function (chip) {
             var field = chip.dataset.statusChip;
-            var source = product.video;
+            var source = field.indexOf("audio_") === 0 ? product.audio : product.video;
             var langKey = field.split("_")[1];
             var active = !!(source && source[langKey]);
             chip.classList.toggle("status-chip--active", active);
@@ -2245,8 +1981,6 @@
         if (!form) {
             return;
         }
-
-        stripLegacyAudioUploadUi(form, pageLanguage);
 
         var feedback = pageRoot.querySelector("[data-form-status]");
         var submitButton = form.querySelector("button[type='submit']");

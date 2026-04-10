@@ -294,10 +294,21 @@ body.is-navigating {
     cursor: progress;
 }
 
-body.is-navigating [data-page] {
-    opacity: 0.72;
+body.is-navigating [data-spa-root] {
     pointer-events: none;
-    transition: opacity 0.2s ease;
+}
+
+[data-spa-root] {
+    position: relative;
+    isolation: isolate;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.is-navigating [data-spa-root] {
+        pointer-events: none;
+    }
 }
 
 .global-language-utility {

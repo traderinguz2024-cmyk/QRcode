@@ -183,7 +183,7 @@ def cache_api_payload(namespace, request, payload, timeout):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.select_related("faculty", "teacher", "category", "about_entry").order_by("-created_at")
+    queryset = Product.objects.select_related("faculty", "teacher", "category", "about_entry").order_by("-created_at", "-pk")
     parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def get_serializer_class(self):

@@ -13,6 +13,9 @@
     var lookupBundleRequests = Object.create(null);
     var jsonResponseCache = new Map();
     var jsonResponseRequestCache = new Map();
+    var activePageCleanup = null;
+    var navigationStateTimerId = 0;
+    var pageInitializationFrameId = 0;
 
     var TRANSLATIONS = {
         uz: {
@@ -91,9 +94,7 @@
             deleteQuestion: "Удалить запись {name}?",
             saveSuccess: "Сохранено.",
             coverMissing: "Обложка отсутствует",
-            qrMissing: "QR еще не создан",
-            ttsPlaying: "Описание автоматически озвучивается.",
-            ttsUnsupported: "В этом браузере нет автоматического озвучивания."
+            qrMissing: "QR еще не создан"
         },
         en: {
             listError: "Unable to load objects.",
@@ -369,6 +370,21 @@
         lookupBundleRequests = Object.create(null);
         jsonResponseCache.clear();
         jsonResponseRequestCache.clear();
+    }
+
+    function runActivePageCleanup() {
+        var cleanup = activePageCleanup;
+        activePageCleanup = null;
+        if (typeof cleanup !== "function") {
+            return;
+        }
+        try {
+            cleanup();
+        } catch (error) {}
+    }
+
+    function setActivePageCleanup(cleanup) {
+        activePageCleanup = typeof cleanup === "function" ? cleanup : null;
     }
 
     function buildIndexUrl(langCode, categoryId, facultyId) {
@@ -716,7 +732,51 @@
     }
 
     function setNavigationState(busy) {
-        document.body.classList.toggle("is-navigating", busy);
+        if (typeof window !== "undefined" && navigationStateTimerId) {
+            window.clearTimeout(navigationStateTimerId);
+            navigationStateTimerId = 0;
+        }
+        if (!document.body) {
+            return;
+        }
+        document.body.classList.toggle("is-navigating", !!busy);
+    }
+
+    function clearPendingPageInitialization() {
+        if (typeof window !== "undefined" && pageInitializationFrameId) {
+            window.cancelAnimationFrame(pageInitializationFrameId);
+            pageInitializationFrameId = 0;
+        }
+    }
+
+    function clearRouteEntranceAnimation() {
+        if (!root) {
+            return;
+        }
+        root.style.transition = "";
+        root.style.opacity = "";
+        root.style.transform = "";
+    }
+
+    function schedulePageInitialization(onReady) {
+        clearPendingPageInitialization();
+        if (typeof window === "undefined") {
+            initializePage();
+            clearRouteEntranceAnimation();
+            if (typeof onReady === "function") {
+                onReady();
+            }
+            return;
+        }
+
+        pageInitializationFrameId = window.requestAnimationFrame(function () {
+            pageInitializationFrameId = 0;
+            initializePage();
+            clearRouteEntranceAnimation();
+            if (typeof onReady === "function") {
+                onReady();
+            }
+        });
     }
 
     function togglePageSkeleton(pageRoot, enabled) {
@@ -925,8 +985,8 @@
             appHeaderMarkup(route),
             '<div class="ui-feedback" data-detail-feedback hidden></div>',
             '<section class="detail-stage"><div class="detail-stage__ambience" aria-hidden="true"><span class="detail-stage__glow detail-stage__glow--one"></span><span class="detail-stage__glow detail-stage__glow--two"></span><span class="detail-stage__grid"></span></div>',
-            '<article class="detail-stage__visual"><div class="detail-stage__visual-shell"><div class="detail-stage__language" data-detail-language></div><div class="detail-stage__visual-meta"><span class="detail-stage__visual-kicker">' + escapeHtml(choose(langCode, { uz: "Vizual profil", ru: "\u0412\u0438\u0437\u0443\u0430\u043b\u044c\u043d\u044b\u0439 \u043f\u0440\u043e\u0444\u0438\u043b\u044c", en: "Visual profile" })) + '</span><span class="detail-stage__visual-line"></span></div><div class="detail-stage__frame" data-visual-slot><div class="visual-card__placeholder">QR</div></div><div class="detail-stage__markers" aria-hidden="true"><span class="detail-stage__marker detail-stage__marker--active"></span><span class="detail-stage__marker"></span><span class="detail-stage__marker"></span></div></div><div class="detail-stage__media-slot detail-stage__media-slot--mobile" data-media-dock-mobile></div></article>',
-            '<article class="detail-stage__copy"><div class="detail-stage__copy-head"><p class="eyebrow">' + escapeHtml(choose(langCode, { uz: "Obyekt tafsiloti", ru: "\u0414\u0435\u0442\u0430\u043b\u0438 \u043e\u0431\u044a\u0435\u043a\u0442\u0430", en: "Object detail" })) + '</p><a class="detail-backlink" href="' + escapeHtml(buildIndexUrl(langCode)) + '">' + escapeHtml(choose(langCode, { uz: "Ro\'yxatga qaytish", ru: "\u041d\u0430\u0437\u0430\u0434 \u043a \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0443", en: "Back to catalog" })) + '</a></div><div class="detail-stage__headline"><h1 data-item-name>' + escapeHtml(choose(langCode, { uz: "Yuklanmoqda...", ru: "\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...", en: "Loading..." })) + '</h1><p class="detail-summary" data-item-summary>' + escapeHtml(t("shortDescriptionMissing", null, langCode)) + '</p><p class="lead-text" data-item-lead hidden></p></div>',
+            '<article class="detail-stage__visual"><div class="detail-stage__visual-shell"><div class="detail-stage__visual-topbar"><a class="detail-visual-backlink" href="' + escapeHtml(buildIndexUrl(langCode)) + '" aria-label="' + escapeHtml(choose(langCode, { uz: "Ro\'yxatga qaytish", ru: "\u041d\u0430\u0437\u0430\u0434 \u043a \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0443", en: "Back to catalog" })) + '"><span aria-hidden="true">&#8592;</span></a><div class="detail-stage__language" data-detail-language></div></div><div class="detail-stage__visual-meta"><span class="detail-stage__visual-kicker">' + escapeHtml(choose(langCode, { uz: "Vizual profil", ru: "\u0412\u0438\u0437\u0443\u0430\u043b\u044c\u043d\u044b\u0439 \u043f\u0440\u043e\u0444\u0438\u043b\u044c", en: "Visual profile" })) + '</span><span class="detail-stage__visual-line"></span></div><div class="detail-stage__frame" data-visual-slot><div class="visual-card__placeholder">QR</div></div><div class="detail-stage__markers" aria-hidden="true"><span class="detail-stage__marker detail-stage__marker--active"></span><span class="detail-stage__marker"></span><span class="detail-stage__marker"></span></div></div><div class="detail-stage__media-slot detail-stage__media-slot--mobile" data-media-dock-mobile></div></article>',
+            '<article class="detail-stage__copy"><div class="detail-stage__copy-head"><p class="eyebrow">' + escapeHtml(choose(langCode, { uz: "Obyekt tafsiloti", ru: "\u0414\u0435\u0442\u0430\u043b\u0438 \u043e\u0431\u044a\u0435\u043a\u0442\u0430", en: "Object detail" })) + '</p><a class="detail-backlink" href="' + escapeHtml(buildIndexUrl(langCode)) + '">' + escapeHtml(choose(langCode, { uz: "Ro\'yxatga qaytish", ru: "\u041d\u0430\u0437\u0430\u0434 \u043a \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0443", en: "Back to catalog" })) + '</a></div><div class="detail-stage__headline"><h1 data-item-name>' + escapeHtml(choose(langCode, { uz: "Yuklanmoqda...", ru: "\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...", en: "Loading..." })) + '</h1><p class="detail-summary" data-item-summary>' + escapeHtml(t("shortDescriptionMissing", null, langCode)) + '</p></div>',
             '<dl class="detail-stage__facts"><div class="fact-chip"><dt>' + escapeHtml(choose(langCode, { uz: "Kategoriya", ru: "\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f", en: "Category" })) + '</dt><dd data-chip-category data-meta-category>' + escapeHtml(t("notAssigned", null, langCode)) + '</dd></div><div class="fact-chip"><dt>' + escapeHtml(choose(langCode, { uz: "Fakultet", ru: "\u0424\u0430\u043a\u0443\u043b\u044c\u0442\u0435\u0442", en: "Faculty" })) + '</dt><dd data-chip-faculty data-meta-faculty>' + escapeHtml(t("notAssigned", null, langCode)) + '</dd></div><div class="fact-chip"><dt>' + escapeHtml(choose(langCode, { uz: "O\'qituvchi", ru: "\u041f\u0440\u0435\u043f\u043e\u0434\u0430\u0432\u0430\u0442\u0435\u043b\u044c", en: "Teacher" })) + '</dt><dd data-chip-teacher data-meta-teacher>' + escapeHtml(t("notAssigned", null, langCode)) + '</dd></div><div class="fact-chip"><dt>' + escapeHtml(choose(langCode, { uz: "Yaratilgan", ru: "\u0421\u043e\u0437\u0434\u0430\u043d\u043e", en: "Created" })) + '</dt><dd data-meta-created></dd></div></dl>',
             '<div class="detail-stage__action-rack"><div class="detail-stage__action-copy"><p class="detail-stage__action-kicker">' + escapeHtml(choose(langCode, { uz: "Media kirish", ru: "\u041c\u0435\u0434\u0438\u0430 \u0434\u043e\u0441\u0442\u0443\u043f", en: "Media access" })) + '</p><span>' + escapeHtml(choose(langCode, { uz: "Audio, video va QR materiallarini shu joydan oching.", ru: "\u041e\u0442\u043a\u0440\u044b\u0432\u0430\u0439\u0442\u0435 \u0430\u0443\u0434\u0438\u043e, \u0432\u0438\u0434\u0435\u043e \u0438 QR \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u044b \u043e\u0442\u0441\u044e\u0434\u0430.", en: "Open audio, video, and QR materials from here." })) + '</span></div><div class="detail-stage__actions"><a class="detail-action detail-action--muted" href="#" data-action-audio aria-label="' + escapeHtml(choose(langCode, { uz: "Audio", ru: "\u0410\u0443\u0434\u0438\u043e", en: "Audio" })) + '"><span class="detail-action__icon" aria-hidden="true">' + AUDIO_ICON + '</span><span class="detail-action__label">' + escapeHtml(choose(langCode, { uz: "Audio", ru: "\u0410\u0443\u0434\u0438\u043e", en: "Audio" })) + '</span></a><a class="detail-action detail-action--muted" href="#" data-action-video aria-label="' + escapeHtml(choose(langCode, { uz: "Video", ru: "\u0412\u0438\u0434\u0435\u043e", en: "Video" })) + '"><span class="detail-action__icon" aria-hidden="true">' + VIDEO_ICON + '</span><span class="detail-action__label">' + escapeHtml(choose(langCode, { uz: "Video", ru: "\u0412\u0438\u0434\u0435\u043e", en: "Video" })) + '</span></a><a class="detail-action detail-action--qr detail-action--muted" href="#" data-action-qr aria-label="QR"><span class="detail-action__icon" aria-hidden="true">' + QR_ICON + '</span><span class="detail-action__label">QR</span></a></div></div>',
             '<div class="detail-inline-viewer" data-inline-viewer hidden><div class="detail-inline-viewer__dialog" data-inline-viewer-dialog role="region" aria-labelledby="detail-inline-viewer-title" tabindex="-1"><div class="detail-inline-viewer__head"><h2 class="detail-inline-viewer__title" id="detail-inline-viewer-title" data-inline-viewer-title>' + escapeHtml(choose(langCode, { uz: "Ko\'rish", ru: "\u041f\u0440\u043e\u0441\u043c\u043e\u0442\u0440", en: "Preview" })) + '</h2><button type="button" class="detail-inline-viewer__close" data-inline-viewer-close aria-label="' + escapeHtml(choose(langCode, { uz: "Yopish", ru: "\u0417\u0430\u043a\u0440\u044b\u0442\u044c", en: "Close" })) + '"><span aria-hidden="true">&times;</span></button></div><div class="detail-inline-viewer__body" data-inline-viewer-body></div></div></div>',
@@ -1123,20 +1183,102 @@
             return;
         }
 
-        setNavigationState(true);
-        try {
+        function commitNavigation(onReady) {
+            runActivePageCleanup();
+            clearPendingPageInitialization();
+            clearRouteEntranceAnimation();
             stopActiveMediaPlayback();
             renderRouteShell(route);
+            prepareRouteSkeleton(root, route);
             if (!navigationOptions.fromPopState) {
                 var stateMethod = navigationOptions.replace ? "replaceState" : "pushState";
                 window.history[stateMethod]({ url: route.url.toString() }, "", route.url.toString());
             }
-            initializePage();
             if (!navigationOptions.preserveScroll) {
                 window.scrollTo(0, 0);
             }
-        } finally {
+            schedulePageInitialization(onReady);
+        }
+
+        setNavigationState(true);
+        try {
+            commitNavigation(function () {
+                setNavigationState(false);
+            });
+        } catch (error) {
             setNavigationState(false);
+            throw error;
+        }
+    }
+
+    function renderListSkeletonRows() {
+        var skeletonRows = [];
+        var index;
+
+        for (index = 0; index < 4; index += 1) {
+            skeletonRows.push([
+                '<article class="list-row list-row--skeleton" aria-hidden="true">',
+                '  <div class="row-thumb"><span class="skeleton-block"></span></div>',
+                '  <div class="row-content">',
+                '    <div class="row-meta"><span class="skeleton-pill"></span></div>',
+                '    <div class="row-titlebar"><div><span class="skeleton-line skeleton-line--title"></span><span class="skeleton-line skeleton-line--title skeleton-line--short"></span></div></div>',
+                '    <dl class="row-facts">',
+                '      <div><dt><span class="skeleton-inline skeleton-inline--label"></span></dt><dd><span class="skeleton-line skeleton-line--tiny"></span></dd></div>',
+                '      <div><dt><span class="skeleton-inline skeleton-inline--label"></span></dt><dd><span class="skeleton-line skeleton-line--tiny"></span></dd></div>',
+                '    </dl>',
+                '    <div class="row-details">',
+                '      <div class="row-side"><p class="row-side__label"><span class="skeleton-inline skeleton-inline--label"></span></p><p class="row-side__value"><span class="skeleton-line skeleton-line--medium"></span></p></div>',
+                '      <div class="row-side"><p class="row-side__label"><span class="skeleton-inline skeleton-inline--label"></span></p><p class="row-side__value"><span class="skeleton-line skeleton-line--short"></span></p></div>',
+                "    </div>",
+                "  </div>",
+                '  <div class="row-qr"><span class="skeleton-block skeleton-block--square"></span></div>',
+                "</article>"
+            ].join(""));
+        }
+
+        return skeletonRows.join("");
+    }
+
+    function prepareRouteSkeleton(pageRoot, route) {
+        if (!pageRoot || !route) {
+            return;
+        }
+
+        togglePageSkeleton(pageRoot, true);
+
+        if (route.page === "list") {
+            var count = pageRoot.querySelector("[data-products-count]");
+            var listShell = pageRoot.querySelector("[data-list-shell]");
+            var listBody = pageRoot.querySelector("[data-list-body]");
+            var emptyState = pageRoot.querySelector("[data-empty-state]");
+
+            if (count) {
+                count.classList.add("skeleton-inline");
+                count.textContent = "";
+            }
+            if (listBody) {
+                listBody.classList.add("is-loading");
+                listBody.innerHTML = renderListSkeletonRows();
+            }
+            if (listShell) {
+                listShell.hidden = false;
+            }
+            if (emptyState) {
+                emptyState.hidden = true;
+            }
+            return;
+        }
+
+        if (route.page === "detail") {
+            [
+                pageRoot.querySelector("[data-story-copy]"),
+                pageRoot.querySelector("[data-visual-slot]"),
+                pageRoot.querySelector("[data-qr-slot]")
+            ].forEach(function (element) {
+                if (element) {
+                    element.classList.add("is-loading");
+                }
+            });
         }
     }
 
@@ -1201,34 +1343,6 @@
                 "  </div>",
                 "</article>"
             ].join("");
-        }
-
-        function renderProductSkeletons() {
-            var skeletonRows = [];
-            var index;
-
-            for (index = 0; index < 4; index += 1) {
-                skeletonRows.push([
-                    '<article class="list-row list-row--skeleton" aria-hidden="true">',
-                    '  <div class="row-thumb"><span class="skeleton-block"></span></div>',
-                    '  <div class="row-content">',
-                    '    <div class="row-meta"><span class="skeleton-pill"></span></div>',
-                    '    <div class="row-titlebar"><div><span class="skeleton-line skeleton-line--title"></span><span class="skeleton-line skeleton-line--title skeleton-line--short"></span></div></div>',
-                    '    <dl class="row-facts">',
-                    '      <div><dt><span class="skeleton-inline skeleton-inline--label"></span></dt><dd><span class="skeleton-line skeleton-line--tiny"></span></dd></div>',
-                    '      <div><dt><span class="skeleton-inline skeleton-inline--label"></span></dt><dd><span class="skeleton-line skeleton-line--tiny"></span></dd></div>',
-                    '    </dl>',
-                    '    <div class="row-details">',
-                    '      <div class="row-side"><p class="row-side__label"><span class="skeleton-inline skeleton-inline--label"></span></p><p class="row-side__value"><span class="skeleton-line skeleton-line--medium"></span></p></div>',
-                    '      <div class="row-side"><p class="row-side__label"><span class="skeleton-inline skeleton-inline--label"></span></p><p class="row-side__value"><span class="skeleton-line skeleton-line--short"></span></p></div>',
-                    "    </div>",
-                    "  </div>",
-                    '  <div class="row-qr"><span class="skeleton-block skeleton-block--square"></span></div>',
-                    "</article>"
-                ].join(""));
-            }
-
-            return skeletonRows.join("");
         }
 
         function bindListRowNavigation() {
@@ -1308,7 +1422,7 @@
             }
 
             listBody.classList.add("is-loading");
-            listBody.innerHTML = renderProductSkeletons();
+            listBody.innerHTML = renderListSkeletonRows();
             if (listShell) {
                 listShell.hidden = false;
             }
@@ -1381,7 +1495,7 @@
 
         if (listBody) {
             listBody.classList.add("is-loading");
-            listBody.innerHTML = renderProductSkeletons();
+            listBody.innerHTML = renderListSkeletonRows();
         }
         if (listShell) {
             listShell.hidden = false;
@@ -1406,9 +1520,22 @@
     function renderDetailPage(pageRoot, pageLanguage, runId) {
         var feedback = pageRoot.querySelector("[data-detail-feedback]");
         var productId = pageRoot.dataset.productId;
+        var detailRequestController = typeof AbortController === "function" ? new AbortController() : null;
+        var removeViewerFlowListener = null;
         if (!productId) {
             return;
         }
+
+        setActivePageCleanup(function () {
+            if (removeViewerFlowListener) {
+                removeViewerFlowListener();
+                removeViewerFlowListener = null;
+            }
+            if (detailRequestController) {
+                detailRequestController.abort();
+            }
+            stopActiveMediaPlayback(pageRoot);
+        });
 
         togglePageSkeleton(pageRoot, true);
 
@@ -1454,34 +1581,13 @@
             var paragraphs = fallbackText.split(/\n+/).map(function (part) {
                 return part.trim();
             }).filter(Boolean);
-            var sentences = (fallbackText.replace(/\s+/g, " ").match(/[^.!?]+[.!?]?/g) || []).map(function (part) {
-                return part.trim();
-            }).filter(Boolean);
-            var descriptiveQueue = [];
-            var numericQueue = [];
-
-            sentences.forEach(function (sentence) {
-                if (/[0-9]/.test(sentence)) {
-                    numericQueue.push(sentence);
-                } else {
-                    descriptiveQueue.push(sentence);
-                }
-            });
-
-            var intro = paragraphs[0] || takeSentences(descriptiveQueue, 2) || takeSentences(numericQueue, 1) || fallbackText;
-            var features = paragraphs[1] || takeSentences(descriptiveQueue, 2) || takeSentences(numericQueue, 1);
-            var specs = paragraphs[2] || takeSentences(numericQueue, 2) || takeSentences(descriptiveQueue, 2);
-            var usage = paragraphs.slice(3).join(" ").trim() || takeSentences(descriptiveQueue, 3) || takeSentences(numericQueue, 2);
-            var summarySource = intro;
-
-            if (summarySource.length < 140 && features) {
-                summarySource += " " + features;
-            }
+            var sections = paragraphs.length ? paragraphs : [fallbackText];
+            var summarySource = sections[0] || fallbackText;
 
             return {
                 summary: excerptText(summarySource, 220) || fallbackText,
-                lead: excerptText(features || specs || usage, 160),
-                sections: [intro, features, specs, usage].filter(Boolean)
+                lead: "",
+                sections: sections.slice(0, 4)
             };
         }
 
@@ -1503,24 +1609,9 @@
 
         function buildSpecHighlights(nameValue, text, product) {
             var highlights = [];
-            var source = trimTextValue([nameValue, text].filter(Boolean).join(" "));
-            var patterns = [
-                /\b\d+(?:[.,]\d+)?\s?(?:MP|Mpx|GHz|MHz|kHz|Hz|GB|TB|MB|fps|mm|cm|kg|g|W|V|mAh|nm|um|mkm)\b/gi,
-                /\b\d+(?:[.,]\d+)?x\b/gi,
-                /\b\d+(?:[.,]\d+)?\s?(?:dyuym|inch)\b(?:\s?(?:LCD|LED|IPS|OLED))?/gi,
-                /\b\d+(?:[.,]\d+)?(?:["\u2033\u201D])\s?(?:LCD|LED|IPS|OLED)?\b/gi,
-                /\b(?:HDMI(?:\s*\+\s*USB(?:-C)?)?|USB(?:-C)?(?:\s*\+\s*HDMI)?|Type-C|LCD|LED|IPS|OLED|Wi-?Fi|Bluetooth|Full HD|4K)\b/gi
-            ];
-
-            patterns.forEach(function (pattern) {
-                (source.match(pattern) || []).forEach(function (match) {
-                    pushUniqueSpec(highlights, match, 24);
-                });
-            });
-
-            [product && product.category, product && product.faculty].forEach(function (value) {
+            [product && product.category, product && product.faculty, product && product.teacher_name].forEach(function (value) {
                 if (highlights.length < 4) {
-                    pushUniqueSpec(highlights, value, 26);
+                    pushUniqueSpec(highlights, value, 32);
                 }
             });
 
@@ -1534,14 +1625,10 @@
         }
 
         function storyHtml(model) {
-            var labels = sectionLabels();
             var sections = model && model.sections && model.sections.length ? model.sections : [t("noStory", null, pageLanguage)];
 
-            return sections.map(function (sectionText, index) {
-                var label = labels[Math.min(index, labels.length - 1)];
-                var safeText = escapeHtml(sectionText).replace(/\n+/g, "</p><p>");
-                var ordinal = index + 1 < 10 ? "0" + (index + 1) : String(index + 1);
-                return '<section class="story-section"><div class="story-section__head"><span class="story-section__index">' + escapeHtml(ordinal) + '</span><div><p class="story-section__eyebrow">' + escapeHtml(label.eyebrow) + '</p><h3>' + escapeHtml(label.title) + '</h3></div></div><div class="story-section__body"><p>' + safeText + "</p></div></section>";
+            return sections.map(function (sectionText) {
+                return "<p>" + escapeHtml(sectionText).replace(/\n+/g, "<br>") + "</p>";
             }).join("");
         }
 
@@ -1570,7 +1657,9 @@
             }
         });
 
-        request(buildApiDetailUrl(pageRoot.dataset.apiProducts, productId, { lang: pageLanguage }))
+        request(buildApiDetailUrl(pageRoot.dataset.apiProducts, productId, { lang: pageLanguage }), detailRequestController ? {
+            signal: detailRequestController.signal
+        } : null)
             .then(function (product) {
                 if (!isActivePage(pageRoot, runId)) {
                     return;
@@ -1696,8 +1785,14 @@
                 if (viewerFlowMediaQuery) {
                     if (typeof viewerFlowMediaQuery.addEventListener === "function") {
                         viewerFlowMediaQuery.addEventListener("change", syncMediaDockPlacement);
+                        removeViewerFlowListener = function () {
+                            viewerFlowMediaQuery.removeEventListener("change", syncMediaDockPlacement);
+                        };
                     } else if (typeof viewerFlowMediaQuery.addListener === "function") {
                         viewerFlowMediaQuery.addListener(syncMediaDockPlacement);
+                        removeViewerFlowListener = function () {
+                            viewerFlowMediaQuery.removeListener(syncMediaDockPlacement);
+                        };
                     }
                 }
                 syncMediaDockPlacement();
@@ -1848,19 +1943,15 @@
                     }
                 });
 
-                var lead = pageRoot.querySelector("[data-item-lead]");
-                if (lead) {
-                    var leadText = storyModel.lead || (description && normalizeSpeechText(description) !== normalizeSpeechText(primaryStory) ? excerptText(description, 160) : "");
-                    lead.hidden = !leadText;
-                    lead.textContent = leadText;
-                }
-
                 var story = pageRoot.querySelector("[data-story-copy]");
                 if (story) {
                     story.innerHTML = storyHtml(storyModel);
                 }
             })
             .catch(function (error) {
+                if (error && error.name === "AbortError") {
+                    return;
+                }
                 if (!isActivePage(pageRoot, runId)) {
                     return;
                 }
@@ -1950,30 +2041,6 @@
             var active = !!(source && source[langKey]);
             chip.classList.toggle("status-chip--active", active);
         });
-    }
-
-    function stripLegacyAudioUploadUi(form, pageLanguage) {
-        var audioGroup = null;
-        ["audio_uz", "audio_ru", "audio_en"].forEach(function (name) {
-            var input = form.elements[name];
-            if (input && !audioGroup) {
-                audioGroup = input.closest(".media-group");
-            }
-        });
-        if (audioGroup) {
-            audioGroup.remove();
-        }
-
-        var mediaStack = form.querySelector(".media-stack");
-        var mediaHead = mediaStack && mediaStack.previousElementSibling;
-        var mediaIntro = mediaHead && mediaHead.querySelector("p:last-child");
-        if (mediaIntro) {
-            mediaIntro.textContent = choose(pageLanguage, {
-                uz: "Muqova rasmi va video fayllarni tillar bo'yicha biriktiring. Audio avtomatik generatsiya qilinadi.",
-                ru: "Прикрепите обложку и видеофайлы по языкам. Аудио будет сгенерировано автоматически.",
-                en: "Attach the cover image and video files for each language. Audio is generated automatically."
-            });
-        }
     }
 
     function renderFormPage(pageRoot, pageLanguage, runId) {
